@@ -16,6 +16,10 @@ The response is an `apivouch-outcome-receipt-v1`. `VERIFIED` includes a selected
 
 Runs the explicitly self-contained four-fixture demonstration. Its receipt sets `provider_independence.required` to `false`; this bypass is not available in caller-supplied REST or MCP requests.
 
+### `POST /api/outcomes/live-demo`
+
+Calls Frankfurter, Floatrates, and ExchangeRate-API at distinct public origins to resolve a USD→EUR reference rate. It uses the same origin, schema, latency, agreement, selection, storage, and integrity path as caller-supplied requests; no demo bypass is active.
+
 ### `GET /api/outcomes/receipts/{receipt_id}`
 
 Returns the stored receipt and `integrity_valid`, recomputed from its canonical JSON without trusting the stored fingerprint.

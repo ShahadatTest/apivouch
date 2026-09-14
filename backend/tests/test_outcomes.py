@@ -103,6 +103,12 @@ def test_path_extraction_supports_objects_and_arrays():
         outcomes.extract_path({"data": {}}, "data.missing")
 
 
+def test_receipt_preview_is_bounded_and_never_embeds_objects():
+    assert outcomes.scalar_preview(18.4) == 18.4
+    assert outcomes.scalar_preview("x" * 200) == "x" * 120
+    assert outcomes.scalar_preview({"private": "shape"}) is None
+
+
 @pytest.mark.asyncio
 async def test_router_requires_distinct_provider_origins():
     providers = [provider("One", 10), provider("Two", 10)]

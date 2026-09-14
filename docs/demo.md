@@ -3,11 +3,11 @@
 ## One-click path
 
 1. Open the deployed root page.
-2. Choose **Resolve verified outcome**.
-3. Confirm that Atlas and Beacon agree, Legacy is rejected for returning a string instead of a number, and Offline Express is rejected for HTTP 503.
-4. Confirm the selected provider, quoted call price, agreement threshold, review commit, and receipt fingerprint.
-5. Confirm `integrity_verified_after_storage` is `true`; this is a second read-and-hash check, not a UI-only claim.
-6. Then choose **Run self-contained live demo** in the provider lab.
+2. Choose **Call real providers** and confirm that at least two of Frankfurter, Floatrates, and ExchangeRate-API agree on the USD→EUR reference rate.
+3. Confirm `provider_independence.required` through the API receipt; all three URLs use distinct public origins and redirect convergence is checked.
+4. Choose **Run failure fixture**. Confirm that Atlas and Beacon agree, Legacy is rejected for returning a string instead of a number, and Offline Express is rejected for HTTP 503.
+5. Confirm the selected provider, quoted call price, agreement threshold, review commit, and receipt fingerprint.
+6. Confirm `integrity_verified_after_storage` is `true`; this is a second read-and-hash check, not a UI-only claim. Then choose **Run self-contained live demo** in the provider lab.
 7. APIVouch imports its deliberately incomplete Shop API contract and makes three bounded calls to each safe operation.
 8. Inspect the response-shape drift, generated contract, MCP tool schemas, and project MCP URL.
 9. Open **Exhaustiveness proof**: the demo has already traversed three catalog pages and certified exactly seven records.

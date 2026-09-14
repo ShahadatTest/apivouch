@@ -21,6 +21,7 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 
 ### Demonstrated capability quality
 
+- The real-data demo resolves one USD→EUR reference rate across three independently operated public origins and requires two schema-valid values within 2% tolerance.
 - The first self-contained demo routes four provider fixtures, rejects a schema failure and an HTTP failure, selects only from the agreeing pair, then re-verifies the stored receipt.
 - Normal REST and MCP requests require distinct configured and post-redirect network origins; the demo bypass is explicit in its receipt.
 - The provider-qualification demo supplies deterministic OpenAPI test conditions without a third-party API.
@@ -32,7 +33,7 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 
 ### Engineering and maintainability
 
-- 46 unit and REST/MCP integration tests, including disagreement, budget, receipt-tampering, origin-independence, and adversarial pagination-proof cases.
+- 47 unit and REST/MCP integration tests, including disagreement, budget, receipt-tampering, origin-independence, bounded previews, and adversarial pagination-proof cases.
 - Ruff, Python compilation, JavaScript syntax, YAML parsing, secret-pattern, file-count, and size checks.
 - REST and MCP calls share one runtime and error model.
 - No LLM or vendor API is required.

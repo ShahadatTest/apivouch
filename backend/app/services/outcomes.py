@@ -53,6 +53,14 @@ def extract_path(payload: Any, path: str | None) -> Any:
     return current
 
 
+def scalar_preview(value: Any) -> str | int | float | bool | None:
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        return value[:120]
+    return None
+
+
 def values_agree(left: Any, right: Any, tolerance_percent: float) -> bool:
     if isinstance(left, (int, float)) and not isinstance(left, bool) and isinstance(right, (int, float)) and not isinstance(right, bool):
         if not math.isfinite(float(left)) or not math.isfinite(float(right)):
@@ -91,6 +99,7 @@ async def probe_provider(provider: dict[str, Any], max_latency_ms: int) -> dict[
             return base
         base["response_digest"] = digest_value(payload)
         value = extract_path(payload, provider.get("result_path"))
+        base["value_preview"] = scalar_preview(value)
         schema = provider.get("expected_schema")
         errors = validate_instance(value, schema) if schema else []
         if errors:

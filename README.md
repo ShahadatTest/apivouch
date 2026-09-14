@@ -8,7 +8,9 @@ An autonomous agent should not trust the first API that answers. A provider can 
 
 ## The 30-second demo
 
-Open the deployed app and click **Resolve verified outcome**. Four live HTTP providers compete to return the same delivery quote:
+Open the deployed app and click **Call real providers**. APIVouch resolves the current USD→EUR reference rate across Frankfurter, Floatrates, and ExchangeRate-API—three independently operated public origins. At least two must return schema-valid values within a 2% tolerance or the result is `UNVERIFIED`.
+
+Then click **Run failure fixture**. Four isolated HTTP fixtures compete to return the same delivery quote:
 
 - two provider fixtures return agreeing numeric results;
 - one returns the wrong type;
@@ -40,7 +42,7 @@ Across independent providers, APIVouch additionally:
 5. deterministically selects the strongest eligible provider and returns `VERIFIED` or refuses with `UNVERIFIED`;
 6. stores a commit-bound receipt whose integrity can be recomputed without trusting APIVouch.
 
-Receipts bind the redacted provider URL, a digest of the exact request URL, resolved origin, result path, expected-schema digest, full-response digest, extracted-value digest, observed status/latency, selection policy, and deployment commit. `examples/verify_outcome_receipt.py` verifies the content address offline with only Python's standard library.
+Receipts bind the redacted provider URL, a digest of the exact request URL, resolved origin, result path, expected-schema digest, full-response digest, extracted-value digest, bounded scalar preview, observed status/latency, selection policy, and deployment commit. `examples/verify_outcome_receipt.py` verifies the content address offline with only Python's standard library.
 
 Every score is deterministic. The before/after comparison is a re-analysis of two stored contracts—there is no hard-coded score boost and no LLM-generated evidence.
 
@@ -62,14 +64,15 @@ python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-The current release contains 46 unit and REST/MCP integration tests.
+The current release contains 47 unit and REST/MCP integration tests.
 
 ## API surface
 
 | Capability | Endpoint |
 |---|---|
 | Resolve a constrained, verified outcome | `POST /api/outcomes/execute` |
-| Run the four-provider judge demo | `POST /api/outcomes/demo` |
+| Run the three-origin real-data demo | `POST /api/outcomes/live-demo` |
+| Run the four-provider failure demo | `POST /api/outcomes/demo` |
 | Retrieve and re-verify a receipt | `GET /api/outcomes/receipts/{id}` |
 | Product-level outcome MCP server | `POST /mcp` |
 | Import a URL or inline contract | `POST /api/projects` |
