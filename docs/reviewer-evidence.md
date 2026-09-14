@@ -33,7 +33,10 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 
 ### Engineering and maintainability
 
-- 47 unit and REST/MCP integration tests, including disagreement, budget, receipt-tampering, origin-independence, bounded previews, and adversarial pagination-proof cases.
+- 49 unit and REST/MCP integration tests, including the complete MCP resolve,
+  storage, re-verification, REST-parity path; disagreement; budget;
+  receipt-tampering; origin-independence; bounded previews; and adversarial
+  pagination-proof cases.
 - Ruff, Python compilation, JavaScript syntax, YAML parsing, secret-pattern, file-count, and size checks.
 - REST and MCP calls share one runtime and error model.
 - No LLM or vendor API is required.
@@ -60,6 +63,7 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 ruff check backend
 python -m compileall -q backend/app
 python -m pytest -q
+python scripts/verify_hackathon.py
 node --check frontend/app.js
 docker build -t apivouch:review .
 ```

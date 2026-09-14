@@ -17,7 +17,9 @@ The expected local reference result is approximately 54/100 for the source and 8
 
 ## Manual API path
 
-The product-level MCP tool is available at `POST /mcp`. Its `tools/list` result contains `apivouch_resolve_verified_outcome`.
+The product-level MCP tools are available at `POST /mcp`. Its `tools/list`
+result contains `apivouch_resolve_verified_outcome` and
+`apivouch_verify_receipt`.
 
 ```bash
 curl http://localhost:8000/demo/openapi.json

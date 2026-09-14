@@ -9,10 +9,20 @@ from sqlalchemy.orm import Session
 
 from app.core.config import APP_VERSION
 from app.models.db import ProjectRow, engine
-from app.schemas.api import ExhaustiveClaimRequest, MCPRequest, OutcomeRequest
+from app.schemas.api import (
+    ExhaustiveClaimRequest,
+    MCPRequest,
+    OutcomeRequest,
+    ReceiptLookupRequest,
+)
 from app.services.exhaustiveness import prove_exhaustive_claim
 from app.services.importer import extract_endpoints
-from app.services.outcomes import execute_verified_outcome, store_receipt
+from app.services.outcomes import (
+    execute_verified_outcome,
+    load_receipt,
+    store_receipt,
+    verify_receipt,
+)
 from app.services.runtime import execute_operation
 
 router = APIRouter()
@@ -24,6 +34,22 @@ OUTCOME_TOOL = {
     "inputSchema": OutcomeRequest.model_json_schema(),
     "outputSchema": {"type": "object", "required": ["verdict", "attempts", "integrity"], "properties": {"verdict": {"type": "string", "enum": ["VERIFIED", "UNVERIFIED"]}, "result": {}, "selected_provider": {"type": ["string", "null"]}, "attempts": {"type": "array"}, "integrity": {"type": "object"}}},
     "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+}
+
+RECEIPT_TOOL = {
+    "name": "apivouch_verify_receipt",
+    "title": "Verify a stored APIVouch receipt",
+    "description": "Retrieve a stored outcome receipt and recompute its SHA-256 integrity fingerprint before returning it to the agent.",
+    "inputSchema": ReceiptLookupRequest.model_json_schema(),
+    "outputSchema": {
+        "type": "object",
+        "required": ["receipt", "integrity_valid"],
+        "properties": {
+            "receipt": {"type": "object"},
+            "integrity_valid": {"type": "boolean"},
+        },
+    },
+    "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
 }
 
 
@@ -79,20 +105,39 @@ async def capability_mcp(request: MCPRequest):
     if request.method == "ping":
         return _result(request.id, {})
     if request.method == "tools/list":
-        return _result(request.id, {"tools": [OUTCOME_TOOL]})
+        return _result(request.id, {"tools": [OUTCOME_TOOL, RECEIPT_TOOL]})
     if request.method == "tools/call":
-        if request.params.get("name") != OUTCOME_TOOL["name"]:
-            return _error(request.id, -32602, "Unknown tool", {"name": request.params.get("name")})
-        try:
-            body = OutcomeRequest.model_validate(request.params.get("arguments") or {})
-        except ValidationError as exc:
-            return _error(request.id, -32602, "Invalid outcome request", {"detail": str(exc)[:500]})
-        try:
-            receipt = await execute_verified_outcome(body.model_dump())
-        except ValueError as exc:
-            return _error(request.id, -32602, "Invalid provider set", {"detail": str(exc)})
-        store_receipt(receipt)
-        return _result(request.id, {"content": [{"type": "text", "text": json.dumps(receipt, ensure_ascii=False)}], "structuredContent": receipt, "isError": receipt["verdict"] != "VERIFIED"})
+        tool_name = request.params.get("name")
+        arguments = request.params.get("arguments") or {}
+        if tool_name == OUTCOME_TOOL["name"]:
+            try:
+                body = OutcomeRequest.model_validate(arguments)
+            except ValidationError as exc:
+                return _error(request.id, -32602, "Invalid outcome request", {"detail": str(exc)[:500]})
+            try:
+                receipt = await execute_verified_outcome(body.model_dump())
+            except ValueError as exc:
+                return _error(request.id, -32602, "Invalid provider set", {"detail": str(exc)})
+            store_receipt(receipt)
+            return _result(request.id, {"content": [{"type": "text", "text": json.dumps(receipt, ensure_ascii=False)}], "structuredContent": receipt, "isError": receipt["verdict"] != "VERIFIED"})
+        if tool_name == RECEIPT_TOOL["name"]:
+            try:
+                lookup = ReceiptLookupRequest.model_validate(arguments)
+            except ValidationError as exc:
+                return _error(request.id, -32602, "Invalid receipt lookup", {"detail": str(exc)[:500]})
+            receipt = load_receipt(lookup.receipt_id)
+            if receipt is None:
+                return _error(request.id, -32004, "Receipt not found", {"receipt_id": lookup.receipt_id})
+            outcome = {"receipt": receipt, "integrity_valid": verify_receipt(receipt)}
+            return _result(
+                request.id,
+                {
+                    "content": [{"type": "text", "text": json.dumps(outcome, ensure_ascii=False)}],
+                    "structuredContent": outcome,
+                    "isError": not outcome["integrity_valid"],
+                },
+            )
+        return _error(request.id, -32602, "Unknown tool", {"name": tool_name})
     return _error(request.id, -32601, "Method not found", {"method": request.method})
 
 

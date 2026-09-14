@@ -18,6 +18,8 @@ Agent goal + constraints
        VERIFIED outcome | UNVERIFIED refusal
                 │
                 └─ commit-bound SHA-256 integrity receipt
+                           │
+                           └─ stored + re-verifiable through MCP
 ```
 
 The router never turns disagreement into confidence. Fewer than the requested number of agreeing providers produces `UNVERIFIED` and no selected provider. Public receipts redact every query-string value and distinguish a quoted provider price from actual settlement.

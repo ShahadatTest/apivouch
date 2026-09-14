@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import time
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -15,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import GIT_COMMIT, MAX_OUTCOME_RECEIPTS
 from app.models.db import OutcomeReceiptRow, engine
-from app.services.http_client import safe_request
+from app.services.http_client import SafeResponse, safe_request
 from app.services.schemas import validate_instance
 
 
@@ -70,7 +71,15 @@ def values_agree(left: Any, right: Any, tolerance_percent: float) -> bool:
     return canonical_json(left) == canonical_json(right)
 
 
-async def probe_provider(provider: dict[str, Any], max_latency_ms: int) -> dict[str, Any]:
+RequestFunction = Callable[[str, str], Awaitable[SafeResponse]]
+
+
+async def probe_provider(
+    provider: dict[str, Any],
+    max_latency_ms: int,
+    *,
+    request_fn: RequestFunction | None = None,
+) -> dict[str, Any]:
     started = time.perf_counter()
     base = {
         "name": provider["name"],
@@ -83,7 +92,7 @@ async def probe_provider(provider: dict[str, Any], max_latency_ms: int) -> dict[
         "contract_validated": False,
     }
     try:
-        response = await safe_request("GET", provider["url"])
+        response = await (request_fn or safe_request)("GET", provider["url"])
         latency_ms = max(1, int((time.perf_counter() - started) * 1000))
         base.update({"latency_ms": latency_ms, "upstream_status": response.status_code, "resolved_origin": provider_origin(response.url)})
         if not 200 <= response.status_code < 300:
@@ -178,7 +187,12 @@ def load_receipt(receipt_id: str) -> dict[str, Any] | None:
     return value
 
 
-async def execute_verified_outcome(payload: dict[str, Any], *, require_independent_origins: bool = True) -> dict[str, Any]:
+async def execute_verified_outcome(
+    payload: dict[str, Any],
+    *,
+    require_independent_origins: bool = True,
+    request_fn: RequestFunction | None = None,
+) -> dict[str, Any]:
     constraints = payload["constraints"]
     names = [str(provider["name"]).casefold() for provider in payload["providers"]]
     if len(names) != len(set(names)):
@@ -188,7 +202,16 @@ async def execute_verified_outcome(payload: dict[str, Any], *, require_independe
         raise ValueError("Every provider must use a distinct network origin")
     affordable = [provider for provider in payload["providers"] if provider.get("price_usd", 0) <= constraints["max_price_usd"]]
     over_budget = [provider for provider in payload["providers"] if provider not in affordable]
-    attempts = await asyncio.gather(*(probe_provider(provider, constraints["max_latency_ms"]) for provider in affordable))
+    attempts = await asyncio.gather(
+        *(
+            probe_provider(
+                provider,
+                constraints["max_latency_ms"],
+                request_fn=request_fn,
+            )
+            for provider in affordable
+        )
+    )
     attempts.extend(
         {
             "name": provider["name"],

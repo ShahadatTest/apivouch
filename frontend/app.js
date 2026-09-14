@@ -182,7 +182,7 @@ async function runOutcomeDemo(live = false) {
     const stored = await request(`/api/outcomes/receipts/${outcomeReceipt.receipt_id}`);
     renderOutcome(stored.integrity_valid);
     const rejected = outcomeReceipt.attempts.filter((attempt) => attempt.status === "REJECTED").length;
-    const scope = live ? "distinct public origins" : "isolated failure fixtures";
+    const scope = live ? "distinct public origins" : "deterministic in-process fixtures";
     message($("outcomeMessage"), `${outcomeReceipt.verdict}: ${outcomeReceipt.agreement.providers}/${outcomeReceipt.agreement.required} providers agreed across ${scope}; ${rejected} rejected. Price is quoted transparently and no payment was moved.`, outcomeReceipt.verdict === "VERIFIED");
   } catch (error) { message($("outcomeMessage"), error.message); }
   finally { busy(button, false); }
@@ -270,7 +270,11 @@ $("exportBtn").addEventListener("click", exportPack);
 $("liveOutcomeBtn").addEventListener("click", () => runOutcomeDemo(true));
 $("outcomeBtn").addEventListener("click", () => runOutcomeDemo(false));
 checkHealth();
-const linkedProject = new URLSearchParams(window.location.search).get("project");
+const query = new URLSearchParams(window.location.search);
+const linkedProject = query.get("project");
 if (linkedProject && /^[a-f0-9]{12}$/.test(linkedProject)) {
   openProject(linkedProject).catch((error) => message($("launchMessage"), `Linked project could not be loaded: ${error.message}`));
+}
+if (query.get("demo") === "fixture") {
+  runOutcomeDemo(false);
 }

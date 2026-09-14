@@ -9,7 +9,7 @@ from app.services.http_client import SafeResponse
 def provider(name, value, *, price=0.01, schema=None):
     return {
         "name": name,
-        "url": f"https://{name.lower()}.example.com/quote?api_key=secret",
+        "url": f"https://{name.lower()}.example.com/quote?api_key=opaque-test-value",
         "result_path": "quote.value",
         "expected_schema": schema or {"type": "number"},
         "price_usd": price,
@@ -45,7 +45,7 @@ async def test_router_rejects_broken_provider_and_selects_best_agreeing_result(m
     assert receipt["settlement"]["charged"] is False
     assert receipt["agreement"] == {"providers": 2, "required": 2}
     assert next(item for item in receipt["attempts"] if item["name"] == "Broken")["status"] == "REJECTED"
-    assert all("secret" not in item["url"] for item in receipt["attempts"])
+    assert all("opaque-test-value" not in item["url"] for item in receipt["attempts"])
     assert outcomes.verify_receipt(receipt) is True
 
 

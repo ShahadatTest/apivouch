@@ -24,6 +24,13 @@ Calls Frankfurter, Floatrates, and ExchangeRate-API at distinct public origins t
 
 Returns the stored receipt and `integrity_valid`, recomputed from its canonical JSON without trusting the stored fingerprint.
 
+### Product MCP tools at `POST /mcp`
+
+- `apivouch_resolve_verified_outcome` runs the normal independent-provider
+  verification path and returns the receipt as structured content.
+- `apivouch_verify_receipt` retrieves a stored receipt by its 24-character ID
+  and recomputes its SHA-256 integrity fingerprint.
+
 ## Project lifecycle
 
 ### `POST /api/projects`

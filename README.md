@@ -4,21 +4,25 @@
 
 An autonomous agent should not trust the first API that answers. A provider can be unavailable, over budget, too slow, schema-invalid, or simply disagree with every independent source. APIVouch calls multiple public providers concurrently, enforces the caller's constraints, selects only from an agreeing evidence group, and binds the decision to the deployed source commit.
 
+![APIVouch verified outcome architecture](docs/assets/architecture.svg)
+
 > Agents do not need another API directory. They need proof that the outcome they are about to use survived independent verification.
 
 ## The 30-second demo
 
 Open the deployed app and click **Call real providers**. APIVouch resolves the current USD→EUR reference rate across Frankfurter, Floatrates, and ExchangeRate-API—three independently operated public origins. At least two must return schema-valid values within a 2% tolerance or the result is `UNVERIFIED`.
 
-Then click **Run failure fixture**. Four isolated HTTP fixtures compete to return the same delivery quote:
+Then click **Run failure fixture**. Four deterministic, in-process provider fixtures compete to return the same delivery quote:
 
 - two provider fixtures return agreeing numeric results;
 - one returns the wrong type;
 - one returns HTTP 503.
 
-APIVouch rejects the bad evidence, selects the best eligible provider under cost and latency limits, stores the receipt, and verifies its SHA-256 integrity after reading it back. The one-click flow is explicitly labelled as a self-contained demo; normal API and MCP requests require distinct provider network origins, including after redirects. The demo is also honest about settlement: price is quoted, but no payment is moved yet.
+APIVouch rejects the bad evidence, selects the best eligible provider under cost and latency limits, stores the receipt, and verifies its SHA-256 integrity after reading it back. The failure flow is explicitly labelled as a deterministic self-contained fixture; the separate live flow calls three public origins, while normal API and MCP requests require distinct provider network origins, including after redirects. The demo is also honest about settlement: price is quoted, but no payment is moved yet.
 
 The same capability is agent-callable through the product-level MCP endpoint at `POST /mcp` with tool `apivouch_resolve_verified_outcome`.
+
+![APIVouch live UI showing a verified fixture outcome](docs/assets/apivouch-demo.png)
 
 ## What the capability completes
 
@@ -59,12 +63,34 @@ Open <http://localhost:8000> and choose **Run self-contained live demo**. The de
 Run the test suite independently:
 
 ```bash
-cd backend
-python -m pip install -r requirements.txt
+python -m pip install -r backend/requirements-dev.txt
 python -m pytest -q
 ```
 
-The current release contains 47 unit and REST/MCP integration tests.
+`backend/requirements.txt` contains production dependencies only;
+`backend/requirements-dev.txt` adds the pinned test and lint toolchain.
+CI blocks merges when either dependency set has a known vulnerability or an
+invalid dependency resolution, and repeats the audit weekly.
+
+The current release contains 49 unit and REST/MCP integration tests.
+
+Run the exact reviewer capability locally (deterministic and network-independent):
+
+```bash
+python scripts/verify_hackathon.py
+```
+
+Add `--live` to call three independent public exchange-rate providers. Both
+paths store the receipt, re-verify it through MCP, and confirm that `/health`
+and `/.well-known/xagent-verification.json` report the same source commit.
+
+See [the hackathon submission draft](docs/hackathon-submission.md) for the
+track positioning, safety declaration, monetization model, and final deployment
+fields that must be filled only after release.
+
+Production steps and commit-binding checks are in
+[the deployment guide](docs/deployment.md). Security reports and deployment
+boundaries are documented in [SECURITY.md](SECURITY.md).
 
 ## API surface
 

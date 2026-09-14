@@ -88,3 +88,9 @@ class OutcomeRequest(BaseModel):
     goal: str = Field(min_length=3, max_length=500)
     providers: list[OutcomeProvider] = Field(min_length=2, max_length=5)
     constraints: OutcomeConstraints = Field(default_factory=OutcomeConstraints)
+
+
+class ReceiptLookupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    receipt_id: str = Field(pattern=r"^[0-9a-f]{24}$")

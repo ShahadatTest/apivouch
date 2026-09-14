@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, HTTPException, Request
 
 from app.schemas.api import OutcomeRequest
+from app.services.http_client import SafeResponse
 from app.services.outcomes import (
     execute_verified_outcome,
     load_receipt,
@@ -11,6 +14,27 @@ from app.services.outcomes import (
 )
 
 router = APIRouter(prefix="/outcomes", tags=["verified outcomes"])
+
+_DEMO_PROVIDER_RESPONSES = {
+    "/demo/providers/atlas": (200, {"provider": "atlas", "quote": {"amount_usd": 18.40, "eta_minutes": 38}}),
+    "/demo/providers/beacon": (200, {"provider": "beacon", "quote": {"amount_usd": 18.44, "eta_minutes": 35}}),
+    "/demo/providers/legacy": (200, {"provider": "legacy", "quote": {"amount_usd": "call us", "eta_minutes": None}}),
+    "/demo/providers/offline": (503, {"error": "temporarily unavailable"}),
+}
+
+
+async def _demo_request(_method: str, url: str) -> SafeResponse:
+    """Deterministic in-process provider transport for the public failure demo."""
+    path = next((path for path in _DEMO_PROVIDER_RESPONSES if url.endswith(path)), None)
+    if path is None:
+        raise ValueError("Unknown demo provider")
+    status, payload = _DEMO_PROVIDER_RESPONSES[path]
+    return SafeResponse(
+        status,
+        {"content-type": "application/json"},
+        json.dumps(payload).encode("utf-8"),
+        url,
+    )
 
 
 async def run_and_store(body: OutcomeRequest) -> dict:
@@ -44,7 +68,11 @@ async def demo(request: Request):
             "constraints": {"max_price_usd": 0.01, "max_latency_ms": 3000, "minimum_agreement": 2, "numeric_tolerance_percent": 1},
         }
     )
-    receipt = await execute_verified_outcome(body.model_dump(), require_independent_origins=False)
+    receipt = await execute_verified_outcome(
+        body.model_dump(),
+        require_independent_origins=False,
+        request_fn=_demo_request,
+    )
     store_receipt(receipt)
     return receipt
 
