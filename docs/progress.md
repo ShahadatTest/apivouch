@@ -1,6 +1,6 @@
 # Release status
 
-## Completed for 1.0
+## Completed for 1.1
 
 - Deterministic OpenAPI 3.x / Swagger 2.0 import and local-reference resolution
 - Six-dimension readiness analysis with structured findings
@@ -16,6 +16,10 @@
 - Self-contained live demo and responsive reviewer workbench
 - Single-image Docker deployment and Render blueprint
 - Unit plus REST/MCP integration tests
+- Server-owned Exhaustiveness Gate for `ALL`, `NONE`, `EXACT_COUNT`, `MIN`, and `MAX`
+- Cursor, page, and offset traversal with page/record caps
+- Snapshot, total, repeated-page, repeated-cursor, and partial-start checks
+- Content-addressed proof certificates through both REST and MCP
 
 ## Account-level release steps
 

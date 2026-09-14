@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, create_engine
+from sqlalchemy import String, Text, create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.pool import StaticPool
 
@@ -27,7 +27,12 @@ class ProjectRow(Base):
     repairs_json: Mapped[str] = mapped_column(Text, default="[]")
     tools_json: Mapped[str] = mapped_column(Text, default="[]")
     retest_json: Mapped[str] = mapped_column(Text, default="{}")
+    proof_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    columns = {column["name"] for column in inspect(engine).get_columns("projects")}
+    if "proof_json" not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE projects ADD COLUMN proof_json TEXT DEFAULT '{}'")

@@ -17,6 +17,7 @@ Given a public OpenAPI 3.x or Swagger 2.0 contract, APIVouch:
 5. detects response-shape drift across successful observations;
 6. generates an evidence-labelled agent contract and re-analyzes it;
 7. exports MCP tool definitions and serves them through a real JSON-RPC MCP endpoint.
+8. proves exhaustive collection claims by traversing bounded pagination itself—never by trusting agent-supplied counts or cursors.
 
 Every score is deterministic. The before/after comparison is a re-analysis of two stored contracts—there is no hard-coded score boost and no LLM-generated evidence.
 
@@ -38,7 +39,7 @@ python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-The current release contains 29 unit and REST/MCP integration tests.
+The current release contains 38 unit and REST/MCP integration tests.
 
 ## API surface
 
@@ -48,6 +49,7 @@ The current release contains 29 unit and REST/MCP integration tests.
 | Upload JSON/YAML | `POST /api/projects/upload` |
 | Static diagnostics | `POST /api/projects/{id}/analyze` |
 | Bounded live evidence | `POST /api/projects/{id}/test` |
+| Prove `ALL` / `NONE` / count / min / max | `POST /api/projects/{id}/prove` |
 | Generate evidence-bound contract | `POST /api/projects/{id}/contract` |
 | Download generated contract | `GET /api/projects/{id}/contract` |
 | Invoke a safe generated operation | `POST /api/projects/{id}/proxy/{operation_id}` |
@@ -92,12 +94,15 @@ Then call `tools/list` or `tools/call`. A tool result includes a stable envelope
 }
 ```
 
+Every project with a `GET` operation also exposes `apivouch_prove_exhaustive_claim`. It rejects client-supplied evidence, starts at the first page, follows cursor/page/offset pagination within deployment caps, and checks page repetition, cursor progress, snapshot stability, and authoritative totals. Its verdict is `PROVEN`, `CONDITIONAL` (complete traversal without a declared snapshot), or `UNPROVEN`; a failed obligation can never receive a certificate. The latest result is stored with the project and included in its exported evidence pack.
+
 ## Safety and capability boundary
 
 - Automatic testing and public tool execution are limited to read-only HTTP methods.
 - State-changing operations are documented but return `CONFIRMATION_REQUIRED`; they are never silently converted into `GET` requests.
 - URL credentials, localhost, private, link-local, metadata, multicast, reserved, and unspecified IP ranges are blocked in production.
 - Every redirect target is revalidated, response bodies are bounded, and request timeouts/retries are capped.
+- Exhaustiveness proof collection defaults to at most 20 pages and 5,000 records; the server cap always wins over a caller's requested limit.
 - Imported contracts, observations, and generated artifacts are stored in the configured database. API credentials are not accepted or stored.
 - The tool diagnoses contract and runtime compatibility. It is not a vulnerability scanner, security auditor, compliance service, or guarantee that an upstream API is safe.
 
@@ -142,6 +147,7 @@ render.yaml               stable deployment blueprint
 
 - External `$ref` documents are not fetched; local JSON pointers are resolved.
 - Authenticated endpoints are analyzed but cannot be live-tested by the public service.
+- Pagination is auto-detected for common cursor, page, and offset conventions; unusual APIs can supply response paths and the request token parameter, but cannot supply observed evidence.
 - Inferred schemas describe observed samples and are not asserted as the API owner's canonical contract.
 - SQLite is suitable for the hackathon review deployment; a long-running multi-instance product should use PostgreSQL and per-user access control.
 

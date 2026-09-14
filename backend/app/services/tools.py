@@ -102,4 +102,62 @@ def generate_tools(endpoints: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "_meta": {"operation_id": operation_id, "method": endpoint["method"], "path": endpoint["path"]},
             }
         )
+    get_operations = sorted({str(endpoint.get("operation_id")) for endpoint in endpoints if endpoint.get("method") == "GET"})
+    if get_operations:
+        proof_name = "apivouch_prove_exhaustive_claim"
+        suffix = 2
+        while proof_name in used_names:
+            proof_name = f"apivouch_prove_exhaustive_claim_{suffix}"
+            suffix += 1
+        tools.append(
+            {
+                "name": proof_name,
+                "title": "Prove an exhaustive API claim",
+                "description": "Have APIVouch fetch every bounded page itself, verify cursor, snapshot, and count consistency, then certify ALL, NONE, EXACT_COUNT, MIN, or MAX without trusting agent-supplied evidence.",
+                "inputSchema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["operation_id", "claim_type"],
+                    "properties": {
+                        "operation_id": {"type": "string", "enum": get_operations},
+                        "claim_type": {"type": "string", "enum": ["ALL", "NONE", "EXACT_COUNT", "MIN", "MAX"]},
+                        "arguments": {"type": "object", "description": "Non-pagination operation arguments only."},
+                        "expected_count": {"type": "integer", "minimum": 0},
+                        "field": {"type": "string", "description": "Dotted numeric field path for MIN or MAX."},
+                        "candidate_id": {"type": ["string", "integer", "number"]},
+                        "id_field": {"type": "string", "default": "id"},
+                        "pagination": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "mode": {"type": "string", "enum": ["auto", "cursor", "page", "offset", "single"], "default": "auto"},
+                                "request_token_parameter": {"type": "string"},
+                                "items_path": {"type": "string"},
+                                "next_cursor_path": {"type": "string"},
+                                "has_more_path": {"type": "string"},
+                                "total_path": {"type": "string"},
+                                "snapshot_path": {"type": "string"},
+                                "max_pages": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+                                "max_records": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 5000},
+                            },
+                        },
+                    },
+                },
+                "outputSchema": {
+                    "type": "object",
+                    "required": ["success", "verdict", "evidence", "blocking_reasons"],
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "verdict": {"type": "string", "enum": ["PROVEN", "CONDITIONAL", "UNPROVEN"]},
+                        "certified_value": {},
+                        "blocking_reasons": {"type": "array", "items": {"type": "object"}},
+                        "warnings": {"type": "array", "items": {"type": "object"}},
+                        "evidence": {"type": "object"},
+                        "certificate": {"type": ["object", "null"]},
+                    },
+                },
+                "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+                "_meta": {"kind": "exhaustiveness_gate", "evidence_owner": "server"},
+            }
+        )
     return tools

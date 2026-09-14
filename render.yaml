@@ -16,3 +16,7 @@ services:
         value: "10"
       - key: MAX_RETRIES
         value: "1"
+      - key: MAX_PROOF_PAGES
+        value: "20"
+      - key: MAX_PROOF_RECORDS
+        value: "5000"

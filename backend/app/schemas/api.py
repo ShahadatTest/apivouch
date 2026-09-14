@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectCreate(BaseModel):
@@ -23,6 +23,35 @@ class ProxyRequest(BaseModel):
 class TestRequest(BaseModel):
     samples_per_endpoint: int = Field(default=2, ge=1, le=5)
     arguments: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class PaginationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["auto", "cursor", "page", "offset", "single"] = "auto"
+    request_token_parameter: str | None = Field(default=None, min_length=1, max_length=128)
+    items_path: str | None = Field(default=None, min_length=1, max_length=256)
+    next_cursor_path: str | None = Field(default=None, min_length=1, max_length=256)
+    has_more_path: str | None = Field(default=None, min_length=1, max_length=256)
+    total_path: str | None = Field(default=None, min_length=1, max_length=256)
+    snapshot_path: str | None = Field(default=None, min_length=1, max_length=256)
+    max_pages: int = Field(default=20, ge=1, le=50)
+    max_records: int = Field(default=5000, ge=1, le=10000)
+
+
+class ExhaustiveClaimRequest(BaseModel):
+    """A claim to verify. Evidence is deliberately absent: APIVouch collects it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation_id: str = Field(min_length=1, max_length=256)
+    claim_type: Literal["ALL", "NONE", "EXACT_COUNT", "MIN", "MAX"]
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    expected_count: int | None = Field(default=None, ge=0)
+    field: str | None = Field(default=None, min_length=1, max_length=256)
+    candidate_id: str | int | float | None = None
+    id_field: str = Field(default="id", min_length=1, max_length=128)
+    pagination: PaginationConfig = Field(default_factory=PaginationConfig)
 
 
 class MCPRequest(BaseModel):

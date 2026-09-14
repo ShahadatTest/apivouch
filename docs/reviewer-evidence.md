@@ -11,6 +11,7 @@ This document points to evidence; it does not assign a score or claim acceptance
 | Reproducible | Pinned dependencies, root Dockerfile, Docker Compose, Render blueprint, exact test/run commands |
 | Safe to evaluate | Read-only automatic boundary, structured errors, bounded network calls, SSRF checks, no accepted/stored credentials |
 | Useful for agents | JSON Schemas, MCP safety annotations, stable result envelope, explicit limits and error semantics |
+| Exhaustive claims are real | Server-owned pagination traversal; caller cannot upload evidence; any failed obligation blocks certification |
 
 ## Quality evidence
 
@@ -25,10 +26,11 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls a doc
 - Findings distinguish missing documentation from observed runtime mismatch.
 - The generated contract records the basis of every inserted change.
 - Export contains the contract, observations, findings, tool schemas, comparison, and endpoint.
+- The demo certifies seven catalog records across three pages, and the same verifier is callable as REST and MCP.
 
 ### Engineering and maintainability
 
-- 29 unit and REST/MCP integration tests.
+- 38 unit and REST/MCP integration tests, including adversarial proof cases.
 - Ruff, Python compilation, JavaScript syntax, YAML parsing, secret-pattern, file-count, and size checks.
 - REST and MCP calls share one runtime and error model.
 - No LLM or vendor API is required.

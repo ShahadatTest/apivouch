@@ -43,6 +43,7 @@ def test_project_contract_export_and_dynamic_mcp_flow():
     assert initialize["result"]["serverInfo"]["name"] == "APIVouch Agent Adapter"
     listed = client.post(f"/mcp/{pid}", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()
     assert listed["result"]["tools"][0]["name"] == "get_status"
+    assert listed["result"]["tools"][-1]["name"] == "apivouch_prove_exhaustive_claim"
 
     exported = client.get(f"/api/projects/{pid}/export").json()
     assert exported["format"] == "apivouch-agent-pack-v1"
@@ -60,3 +61,12 @@ def test_delete_project_is_recoverably_scoped():
     pid = create_project()
     assert client.delete(f"/api/projects/{pid}").status_code == 204
     assert client.get(f"/api/projects/{pid}").status_code == 404
+
+
+def test_proof_request_rejects_client_supplied_evidence():
+    pid = create_project()
+    response = client.post(
+        f"/api/projects/{pid}/prove",
+        json={"operation_id": "get_status", "claim_type": "ALL", "records_seen": 1_000_000, "has_more": False},
+    )
+    assert response.status_code == 422

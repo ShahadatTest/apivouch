@@ -9,10 +9,16 @@ from sqlalchemy.orm import Session
 
 from app.core.config import MAX_ENDPOINTS, MAX_PROJECTS, MAX_UPLOAD_BYTES
 from app.models.db import ProjectRow, engine
-from app.schemas.api import ProjectCreate, ProxyRequest, TestRequest
+from app.schemas.api import (
+    ExhaustiveClaimRequest,
+    ProjectCreate,
+    ProxyRequest,
+    TestRequest,
+)
 from app.services import importer
 from app.services.analyzer import analyze_endpoints
 from app.services.contract import build_agent_contract
+from app.services.exhaustiveness import prove_exhaustive_claim
 from app.services.http_client import safe_request
 from app.services.runtime import execute_operation
 from app.services.scoring import compute_score
@@ -157,6 +163,7 @@ async def get_project(pid: str):
         "score": _json(row.score_json, {}),
         "issues": _json(row.issues_json, []),
         "comparison": _json(row.retest_json, {}),
+        "proof": _json(row.proof_json, {}),
         "has_agent_contract": bool(_repair_bundle(row).get("contract")),
     }
     db.close()
@@ -359,6 +366,29 @@ async def proxy(pid: str, operation_id: str, body: ProxyRequest):
     return await execute_operation(endpoint, body.arguments)
 
 
+@router.post("/projects/{pid}/prove")
+async def prove_claim(pid: str, body: ExhaustiveClaimRequest):
+    db = _db()
+    row = db.get(ProjectRow, pid)
+    if not row:
+        db.close()
+        raise HTTPException(404, "Project not found")
+    source_spec = _json(row.spec_json, {})
+    endpoint = next((item for item in importer.extract_endpoints(source_spec) if item["operation_id"] == body.operation_id), None)
+    if not endpoint:
+        db.close()
+        raise HTTPException(404, "Operation not found")
+    db.close()
+    result = await prove_exhaustive_claim(endpoint, body.model_dump())
+    db = _db()
+    row = db.get(ProjectRow, pid)
+    if row:
+        row.proof_json = json.dumps(result)
+        _save(row, db)
+    db.close()
+    return result
+
+
 @router.get("/projects/{pid}/export")
 async def export(pid: str):
     db = _db()
@@ -377,6 +407,7 @@ async def export(pid: str):
         "agent_contract": repairs.get("contract"),
         "mcp_tools": _json(row.tools_json, []),
         "comparison": _json(row.retest_json, {}),
+        "exhaustiveness_proof": _json(row.proof_json, {}),
         "mcp_endpoint": f"/mcp/{row.id}",
     }
     db.close()

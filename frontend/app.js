@@ -3,6 +3,7 @@ let projectId = null;
 let project = null;
 let tests = [];
 let tools = [];
+let proof = null;
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
@@ -86,19 +87,24 @@ async function runDemo() {
     const spec = await request("/demo/openapi.json");
     const created = await jsonPost("/api/projects", {name: "Inconsistent Shop API · Live Demo", openapi_json: spec});
     projectId = created.id;
+    proof = null;
     await refresh();
     busy(button, true, "Collecting 3× live samples…");
     await jsonPost(`/api/projects/${projectId}/test`, {samples_per_endpoint: 3});
     busy(button, true, "Generating agent contract…");
     await jsonPost(`/api/projects/${projectId}/contract`, {});
     await refresh();
-    message($("workspaceMessage"), "Live demo complete. Every score shown is derived from the stored contract and observations.", true);
+    busy(button, true, "Proving complete catalog…");
+    proof = await jsonPost(`/api/projects/${projectId}/prove`, {operation_id: "listItems", claim_type: "EXACT_COUNT", expected_count: 7, arguments: {limit: 3}});
+    renderProof();
+    message($("workspaceMessage"), "Live demo complete. Scores come from stored observations, and the 7-item catalog proof comes from three server-collected pages.", true);
   } catch (error) { message($("launchMessage"), error.message); }
   finally { busy(button, false); }
 }
 
 async function openProject(id) {
   projectId = id;
+  proof = null;
   await refresh();
   $("workspace").scrollIntoView({behavior: "smooth", block: "start"});
 }
@@ -109,6 +115,7 @@ async function refresh() {
     request(`/api/projects/${projectId}/tests`).catch(() => []),
     request(`/api/projects/${projectId}/tools`).catch(() => []),
   ]);
+  proof = project.proof && Object.keys(project.proof).length ? project.proof : proof;
   $("workspace").style.display = "block";
   $("projectTitle").textContent = project.name;
   $("projectMeta").textContent = `${project.endpoints.length} operations · project ${project.id}`;
@@ -121,7 +128,7 @@ async function refresh() {
   $("step2").classList.toggle("done", tests.length > 0);
   $("step3").classList.toggle("done", project.has_agent_contract);
   $("step4").classList.toggle("done", project.has_agent_contract && tools.length > 0);
-  renderEndpoints(); renderFindings(); renderScores(); renderTools(); renderConnect();
+  renderEndpoints(); renderFindings(); renderScores(); renderProof(); renderTools(); renderConnect();
 }
 
 function renderEndpoints() {
@@ -144,6 +151,40 @@ function renderScores() {
   const breakdown = project.score?.breakdown || {};
   const max = {schema_quality:25, documentation:15, consistency:15, error_handling:15, reliability:15, agent_usability:15};
   $("scoreCards").innerHTML = Object.entries(breakdown).map(([key, value]) => `<div class="tool"><h4>${esc(key.replaceAll("_", " "))}</h4><div style="font-size:28px;font-weight:850">${esc(value)} <span style="font-size:13px;color:var(--muted)">/ ${max[key] || 15}</span></div></div>`).join("");
+}
+
+function renderProof() {
+  const select = $("proofOperation");
+  const previous = select.value;
+  const operations = project.endpoints.filter((endpoint) => endpoint.method === "GET");
+  select.innerHTML = operations.map((endpoint) => `<option value="${esc(endpoint.operation_id)}">${esc(endpoint.operation_id)} · ${esc(endpoint.path)}</option>`).join("");
+  if (operations.some((endpoint) => endpoint.operation_id === previous)) select.value = previous;
+  else if (operations.some((endpoint) => endpoint.operation_id === "listItems")) select.value = "listItems";
+  if (!proof) return;
+  const problems = [...(proof.blocking_reasons || []), ...(proof.warnings || [])];
+  const explanation = problems.length ? problems.map((item) => `<div class="finding"><div><span class="tag ${proof.verdict === "UNPROVEN" ? "high" : "medium"}">${esc(item.code)}</span></div><div><b>${esc(item.message)}</b><p>${esc(item.next_action)}</p></div></div>`).join("") : '<p class="sub">Every required obligation passed.</p>';
+  $("proofResult").className = "proof-result";
+  $("proofResult").innerHTML = `<div><div class="verdict ${esc(proof.verdict.toLowerCase())}">${esc(proof.verdict)}</div><p class="sub" style="margin-top:10px;text-align:center">${esc(proof.certificate?.certificate_id || "No certificate issued")}</p></div><div>${explanation}<div class="code">${esc(JSON.stringify({certified_value: proof.certified_value, evidence: proof.evidence, certificate: proof.certificate}, null, 2))}</div></div>`;
+}
+
+async function runProof() {
+  const button = $("proofBtn"); busy(button, true, "Collecting every page…"); message($("proofMessage"), "");
+  try {
+    const rawArgs = $("proofArgs").value.trim();
+    const argumentsValue = rawArgs ? JSON.parse(rawArgs) : {};
+    if (!argumentsValue || Array.isArray(argumentsValue) || typeof argumentsValue !== "object") throw new Error("Arguments must be a JSON object.");
+    const claimType = $("proofClaim").value;
+    const payload = {operation_id: $("proofOperation").value, claim_type: claimType, arguments: argumentsValue};
+    if (claimType === "EXACT_COUNT") payload.expected_count = Number($("proofExpected").value);
+    if (["MIN", "MAX"].includes(claimType)) {
+      payload.field = $("proofField").value.trim();
+      if ($("proofCandidate").value.trim()) payload.candidate_id = $("proofCandidate").value.trim();
+    }
+    proof = await jsonPost(`/api/projects/${projectId}/prove`, payload);
+    renderProof();
+    message($("proofMessage"), `${proof.verdict}: ${proof.evidence.records_examined || 0} records across ${proof.evidence.pages_examined || 0} page(s), collected by APIVouch.`, proof.verdict !== "UNPROVEN");
+  } catch (error) { message($("proofMessage"), error.message); }
+  finally { busy(button, false); }
 }
 
 function renderTools() {
@@ -189,6 +230,7 @@ $("pasteBtn").addEventListener("click", () => createFromInput($("pasteBtn")));
 $("demoBtn").addEventListener("click", runDemo);
 $("testBtn").addEventListener("click", collectEvidence);
 $("contractBtn").addEventListener("click", generateContract);
+$("proofBtn").addEventListener("click", runProof);
 $("exportBtn").addEventListener("click", exportPack);
 checkHealth();
 const linkedProject = new URLSearchParams(window.location.search).get("project");
