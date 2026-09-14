@@ -195,11 +195,11 @@ The repository includes a production root `Dockerfile` and `render.yaml` bluepri
 ```text
 PROJECT_SLUG=apivouch
 GIT_COMMIT=<exact 40-character deployed commit>
-DATABASE_URL=sqlite:////tmp/apivouch.db
+DATABASE_URL=<Render Postgres connection string>
 ALLOW_PRIVATE_NETWORK=false
 ```
 
-Render supplies `RENDER_GIT_COMMIT`; APIVouch automatically uses it when `GIT_COMMIT` is not set. The health and verification endpoints therefore bind the deployment to the exact reviewed commit.
+The blueprint creates a private, persistent Render Postgres database in the same Singapore region as the web service. Render supplies `RENDER_GIT_COMMIT`; APIVouch automatically uses it when `GIT_COMMIT` is not set. The health and verification endpoints therefore bind the deployment to the exact reviewed commit.
 
 ## Repository map
 
@@ -218,7 +218,7 @@ render.yaml               stable deployment blueprint
 - Authenticated endpoints are analyzed but cannot be live-tested by the public service.
 - Pagination is auto-detected for common cursor, page, and offset conventions; unusual APIs can supply response paths and the request token parameter, but cannot supply observed evidence.
 - Inferred schemas describe observed samples and are not asserted as the API owner's canonical contract.
-- SQLite is suitable for the hackathon review deployment; a long-running multi-instance product should use PostgreSQL and per-user access control.
+- The local development default is SQLite; the Render review deployment uses PostgreSQL. A long-running multi-user product should add per-user access control and managed backups.
 
 ## Monetization path
 
