@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 
 from app.api.demo import router as demo_router
 from app.api.mcp import router as mcp_router
+from app.api.outcomes import router as outcomes_router
 from app.api.projects import router as projects_router
 from app.core.config import APP_VERSION, CORS_ORIGINS, GIT_COMMIT, PROJECT_SLUG
 from app.models.db import init_db
@@ -20,6 +21,7 @@ if CORS_ORIGINS:
 
 init_db()
 app.include_router(projects_router, prefix="/api")
+app.include_router(outcomes_router, prefix="/api")
 app.include_router(mcp_router)
 app.include_router(demo_router)
 

@@ -3,19 +3,21 @@
 ## One-click path
 
 1. Open the deployed root page.
-2. Choose **Run self-contained live demo**.
-3. APIVouch imports its deliberately incomplete Shop API contract.
-4. It makes three bounded calls to each safe operation.
-5. The evidence table shows response-shape drift for weather and product data.
-6. It generates an evidence-labelled agent contract.
-7. Open **MCP tools** and **Connect** to inspect the real tool schemas and project MCP URL.
-8. Open **Exhaustiveness proof**: the demo has already traversed three catalog pages and certified exactly seven records.
-9. Try `MAX`, field `price`, candidate `p2` to prove the highest-priced item using the same server-owned evidence flow.
-10. Export the full evidence pack.
+2. Choose **Resolve verified outcome**.
+3. Confirm that Atlas and Beacon agree, Legacy is rejected for returning a string instead of a number, and Offline Express is rejected for HTTP 503.
+4. Confirm the selected provider, quoted call price, agreement threshold, review commit, and receipt fingerprint.
+5. Confirm `integrity_verified_after_storage` is `true`; this is a second read-and-hash check, not a UI-only claim.
+6. Then choose **Run self-contained live demo** in the provider lab.
+7. APIVouch imports its deliberately incomplete Shop API contract and makes three bounded calls to each safe operation.
+8. Inspect the response-shape drift, generated contract, MCP tool schemas, and project MCP URL.
+9. Open **Exhaustiveness proof**: the demo has already traversed three catalog pages and certified exactly seven records.
+10. Try `MAX`, field `price`, candidate `p2`, then export the evidence pack.
 
 The expected local reference result is approximately 54/100 for the source and 82/100 for the generated contract. Scores can change when scoring rules or the deliberately inconsistent demo contract change; the response itself is authoritative.
 
 ## Manual API path
+
+The product-level MCP tool is available at `POST /mcp`. Its `tools/list` result contains `apivouch_resolve_verified_outcome`.
 
 ```bash
 curl http://localhost:8000/demo/openapi.json
@@ -33,6 +35,8 @@ GET  /api/projects/{id}/export
 
 ## Negative evidence
 
-The demo intentionally proves that APIVouch does not hide upstream variability. Different successful JSON shapes become `OBSERVED_SHAPE_DRIFT`; the generated schema represents the observed union and the MCP runtime provides a stable outer result envelope.
+The outcome demo intentionally proves that APIVouch refuses insufficient evidence. A provider cannot join the consensus group after an HTTP failure, schema failure, cost violation, latency violation, outlier result, or duplicate network origin. If the requested agreement count is not reached, APIVouch returns `UNVERIFIED`, selects no provider, and quotes zero selected cost.
+
+The provider-lab demo proves that APIVouch does not hide upstream variability. Different successful JSON shapes become `OBSERVED_SHAPE_DRIFT`; the generated schema represents the observed union and the MCP runtime provides a stable outer result envelope.
 
 It also demonstrates positive proof under a stable `demo-catalog-v1` snapshot. The collector receives page sizes only; all returned items, cursors, totals, and snapshot evidence come from the demo API itself.

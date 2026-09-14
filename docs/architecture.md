@@ -1,5 +1,29 @@
 # Architecture
 
+## Proof-of-outcome router
+
+```text
+Agent goal + constraints
+        │
+        ├─ Provider A ─┐
+        ├─ Provider B ─┼─ concurrent bounded GET calls
+        ├─ Provider C ─┤
+        └─ Provider D ─┘
+                │
+                ├─ budget + latency gates
+                ├─ JSON path + schema validation
+                ├─ independent agreement / outlier rejection
+                └─ deterministic price/latency/trust ranking
+                ▼
+       VERIFIED outcome | UNVERIFIED refusal
+                │
+                └─ commit-bound SHA-256 integrity receipt
+```
+
+The router never turns disagreement into confidence. Fewer than the requested number of agreeing providers produces `UNVERIFIED` and no selected provider. Public receipts redact every query-string value and distinguish a quoted provider price from actual settlement.
+
+## Provider qualification pipeline
+
 ```text
 OpenAPI URL / JSON / YAML
         │

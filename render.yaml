@@ -20,3 +20,5 @@ services:
         value: "20"
       - key: MAX_PROOF_RECORDS
         value: "5000"
+      - key: MAX_OUTCOME_RECEIPTS
+        value: "1000"

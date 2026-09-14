@@ -1,6 +1,15 @@
 # Release status
 
-## Completed for 1.1
+## Completed for 1.2
+
+- Proof-of-outcome routing across two to five provider candidates
+- Parallel bounded calls with distinct-origin enforcement before and after redirects
+- Price, latency, JSON path, JSON Schema, and agreement gates
+- Numeric-tolerance consensus and deterministic provider ranking
+- Honest `VERIFIED` / `UNVERIFIED` refusal semantics
+- Commit-bound, content-addressed outcome receipts with storage-time integrity verification
+- Product-level MCP server with `apivouch_resolve_verified_outcome`
+- One-click four-provider judge demo with schema and availability failures
 
 - Deterministic OpenAPI 3.x / Swagger 2.0 import and local-reference resolution
 - Six-dimension readiness analysis with structured findings
@@ -25,5 +34,5 @@
 
 - Deploy the final public commit.
 - Confirm `/health` and `/.well-known/xagent-verification.json` report that exact 40-character commit.
-- Update the existing X-Agent submission package and PR with the final source, URL, commit, and verification transcript.
+- Create the X-Agent Open Innovation submission package and PR with the final source, URL, commit, and verification transcript.
 - Keep the public service reachable throughout review.

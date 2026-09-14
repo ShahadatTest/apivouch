@@ -1,4 +1,6 @@
 import pytest
+from fastapi import HTTPException
+
 from app.core.security import validate_url_for_fetch
 from app.services.analyzer import analyze_endpoints
 from app.services.contract import build_agent_contract
@@ -16,7 +18,6 @@ from app.services.schemas import (
 from app.services.scoring import compute_score
 from app.services.tester import prepare_request, probe_endpoint
 from app.services.tools import generate_tools
-from fastapi import HTTPException
 
 
 def sample_spec():

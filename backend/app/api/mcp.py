@@ -9,12 +9,22 @@ from sqlalchemy.orm import Session
 
 from app.core.config import APP_VERSION
 from app.models.db import ProjectRow, engine
-from app.schemas.api import ExhaustiveClaimRequest, MCPRequest
+from app.schemas.api import ExhaustiveClaimRequest, MCPRequest, OutcomeRequest
 from app.services.exhaustiveness import prove_exhaustive_claim
 from app.services.importer import extract_endpoints
+from app.services.outcomes import execute_verified_outcome, store_receipt
 from app.services.runtime import execute_operation
 
 router = APIRouter()
+
+OUTCOME_TOOL = {
+    "name": "apivouch_resolve_verified_outcome",
+    "title": "Resolve a verified outcome",
+    "description": "Call 2-5 independent public providers, enforce price and latency limits, reject invalid or disagreeing results, select the best eligible provider, and return a tamper-evident receipt.",
+    "inputSchema": OutcomeRequest.model_json_schema(),
+    "outputSchema": {"type": "object", "required": ["verdict", "attempts", "integrity"], "properties": {"verdict": {"type": "string", "enum": ["VERIFIED", "UNVERIFIED"]}, "result": {}, "selected_provider": {"type": ["string", "null"]}, "attempts": {"type": "array"}, "integrity": {"type": "object"}}},
+    "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+}
 
 
 def _load_project(pid: str) -> tuple[ProjectRow, dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
@@ -54,6 +64,36 @@ def _save_proof(pid: str, outcome: dict[str, Any]) -> None:
         db.add(row)
         db.commit()
     db.close()
+
+
+@router.post("/mcp")
+async def capability_mcp(request: MCPRequest):
+    """Product-level MCP server for APIVouch's verified-outcome capability."""
+    if request.method == "initialize":
+        requested_version = request.params.get("protocolVersion")
+        supported = {"2024-11-05", "2025-03-26", "2025-06-18"}
+        protocol_version = requested_version if requested_version in supported else "2025-06-18"
+        return _result(request.id, {"protocolVersion": protocol_version, "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "APIVouch Outcome Router", "version": APP_VERSION}, "instructions": "Resolve public API outcomes only when independent evidence satisfies the caller's constraints."})
+    if request.method == "notifications/initialized":
+        return Response(status_code=202)
+    if request.method == "ping":
+        return _result(request.id, {})
+    if request.method == "tools/list":
+        return _result(request.id, {"tools": [OUTCOME_TOOL]})
+    if request.method == "tools/call":
+        if request.params.get("name") != OUTCOME_TOOL["name"]:
+            return _error(request.id, -32602, "Unknown tool", {"name": request.params.get("name")})
+        try:
+            body = OutcomeRequest.model_validate(request.params.get("arguments") or {})
+        except ValidationError as exc:
+            return _error(request.id, -32602, "Invalid outcome request", {"detail": str(exc)[:500]})
+        try:
+            receipt = await execute_verified_outcome(body.model_dump())
+        except ValueError as exc:
+            return _error(request.id, -32602, "Invalid provider set", {"detail": str(exc)})
+        store_receipt(receipt)
+        return _result(request.id, {"content": [{"type": "text", "text": json.dumps(receipt, ensure_ascii=False)}], "structuredContent": receipt, "isError": receipt["verdict"] != "VERIFIED"})
+    return _error(request.id, -32601, "Method not found", {"method": request.method})
 
 
 @router.post("/mcp/{pid}")

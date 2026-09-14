@@ -1,5 +1,6 @@
 import asyncio
 import random
+
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 

@@ -1,7 +1,7 @@
 import os
 
 APP_NAME = "apivouch"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./apivouch.db")
 ALLOW_PRIVATE_NETWORK = os.getenv("ALLOW_PRIVATE_NETWORK", "false").lower() == "true"
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
@@ -10,6 +10,7 @@ MAX_RESPONSE_BYTES = int(os.getenv("MAX_RESPONSE_BYTES", "1048576"))
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", "524288"))
 MAX_ENDPOINTS = int(os.getenv("MAX_ENDPOINTS", "200"))
 MAX_PROJECTS = int(os.getenv("MAX_PROJECTS", "250"))
+MAX_OUTCOME_RECEIPTS = int(os.getenv("MAX_OUTCOME_RECEIPTS", "1000"))
 MAX_REDIRECTS = int(os.getenv("MAX_REDIRECTS", "3"))
 MAX_PROOF_PAGES = int(os.getenv("MAX_PROOF_PAGES", "20"))
 MAX_PROOF_RECORDS = int(os.getenv("MAX_PROOF_RECORDS", "5000"))

@@ -1,10 +1,22 @@
 # APIVouch
 
-**Inspect an API contract, prove its live behavior, generate a safer agent contract, and expose callable MCP tools.**
+**Route one agent goal across independent APIs, reject bad evidence, and return one verified outcome with a tamper-evident receipt.**
 
-API documentation can look complete while the live service returns undocumented errors, inconsistent shapes, or values that violate its schema. Those gaps are manageable for a human developer and dangerous for an autonomous agent. APIVouch turns them into structured, reproducible evidence.
+An autonomous agent should not trust the first API that answers. A provider can be unavailable, over budget, too slow, schema-invalid, or simply disagree with every independent source. APIVouch calls multiple public providers concurrently, enforces the caller's constraints, selects only from an agreeing evidence group, and binds the decision to the deployed source commit.
 
-> Postman shows whether an endpoint responds. APIVouch shows whether an agent can understand and safely call it.
+> Agents do not need another API directory. They need proof that the outcome they are about to use survived independent verification.
+
+## The 30-second demo
+
+Open the deployed app and click **Resolve verified outcome**. Four live HTTP providers compete to return the same delivery quote:
+
+- two provider fixtures return agreeing numeric results;
+- one returns the wrong type;
+- one returns HTTP 503.
+
+APIVouch rejects the bad evidence, selects the best eligible provider under cost and latency limits, stores the receipt, and verifies its SHA-256 integrity after reading it back. The one-click flow is explicitly labelled as a self-contained demo; normal API and MCP requests require distinct provider network origins, including after redirects. The demo is also honest about settlement: price is quoted, but no payment is moved yet.
+
+The same capability is agent-callable through the product-level MCP endpoint at `POST /mcp` with tool `apivouch_resolve_verified_outcome`.
 
 ## What the capability completes
 
@@ -18,6 +30,17 @@ Given a public OpenAPI 3.x or Swagger 2.0 contract, APIVouch:
 6. generates an evidence-labelled agent contract and re-analyzes it;
 7. exports MCP tool definitions and serves them through a real JSON-RPC MCP endpoint.
 8. proves exhaustive collection claims by traversing bounded pagination itself—never by trusting agent-supplied counts or cursors.
+
+Across independent providers, APIVouch additionally:
+
+1. accepts a goal, two to five public providers, extraction paths, response schemas, and price/latency constraints;
+2. calls affordable providers concurrently through the same bounded SSRF-safe transport;
+3. rejects HTTP errors, invalid JSON, missing result paths, schema mismatches, over-budget providers, and outliers;
+4. requires configurable independent agreement, including numeric tolerance;
+5. deterministically selects the strongest eligible provider and returns `VERIFIED` or refuses with `UNVERIFIED`;
+6. stores a commit-bound receipt whose integrity can be recomputed without trusting APIVouch.
+
+Receipts bind the redacted provider URL, a digest of the exact request URL, resolved origin, result path, expected-schema digest, full-response digest, extracted-value digest, observed status/latency, selection policy, and deployment commit. `examples/verify_outcome_receipt.py` verifies the content address offline with only Python's standard library.
 
 Every score is deterministic. The before/after comparison is a re-analysis of two stored contracts—there is no hard-coded score boost and no LLM-generated evidence.
 
@@ -39,12 +62,16 @@ python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-The current release contains 38 unit and REST/MCP integration tests.
+The current release contains 46 unit and REST/MCP integration tests.
 
 ## API surface
 
 | Capability | Endpoint |
 |---|---|
+| Resolve a constrained, verified outcome | `POST /api/outcomes/execute` |
+| Run the four-provider judge demo | `POST /api/outcomes/demo` |
+| Retrieve and re-verify a receipt | `GET /api/outcomes/receipts/{id}` |
+| Product-level outcome MCP server | `POST /mcp` |
 | Import a URL or inline contract | `POST /api/projects` |
 | Upload JSON/YAML | `POST /api/projects/upload` |
 | Static diagnostics | `POST /api/projects/{id}/analyze` |
@@ -59,6 +86,44 @@ The current release contains 38 unit and REST/MCP integration tests.
 | X-Agent deployment proof | `GET /.well-known/xagent-verification.json` |
 
 Interactive OpenAPI documentation is available at `/docs`.
+
+## Verified-outcome request
+
+```json
+{
+  "goal": "Get a verified delivery quote",
+  "providers": [
+    {
+      "name": "provider-a",
+      "url": "https://provider-a.example/quote",
+      "result_path": "quote.amount_usd",
+      "expected_schema": {"type": "number", "minimum": 0},
+      "price_usd": 0.004
+    },
+    {
+      "name": "provider-b",
+      "url": "https://provider-b.example/quote",
+      "result_path": "quote.amount_usd",
+      "expected_schema": {"type": "number", "minimum": 0},
+      "price_usd": 0.003
+    }
+  ],
+  "constraints": {
+    "max_price_usd": 0.01,
+    "max_latency_ms": 3000,
+    "minimum_agreement": 2,
+    "numeric_tolerance_percent": 1
+  }
+}
+```
+
+No provider is selected when the agreement requirement is not met. An `UNVERIFIED` response is a successful safety decision, not a fabricated best guess.
+
+Verify an exported receipt independently:
+
+```bash
+python examples/verify_outcome_receipt.py receipt.json
+```
 
 ## Real MCP flow
 
@@ -99,6 +164,7 @@ Every project with a `GET` operation also exposes `apivouch_prove_exhaustive_cla
 ## Safety and capability boundary
 
 - Automatic testing and public tool execution are limited to read-only HTTP methods.
+- Outcome routing accepts credential-free public `GET` providers only; URL query values are redacted from stored receipts.
 - State-changing operations are documented but return `CONFIRMATION_REQUIRED`; they are never silently converted into `GET` requests.
 - URL credentials, localhost, private, link-local, metadata, multicast, reserved, and unspecified IP ranges are blocked in production.
 - Every redirect target is revalidated, response bodies are bounded, and request timeouts/retries are capped.
@@ -153,6 +219,6 @@ render.yaml               stable deployment blueprint
 
 ## Monetization path
 
-The atomic paid capability is an **Agent Readiness Evidence Pack**: one imported contract, bounded live observations, structured findings, an evidence-labelled agent contract, and callable MCP tools. Team plans can add scheduled drift monitoring, private credentials, change alerts, and retained evidence history.
+The atomic commercial capability is a **Verified Outcome**: concurrent provider evaluation, constraint enforcement, deterministic selection, and an integrity receipt. The current public build quotes provider prices but deliberately does not claim or simulate settlement. A production tier can add x402 payment after verification, retained evidence history, private providers, scheduled drift monitoring, and outcome SLAs.
 
 License: MIT. See [LICENSE](LICENSE).

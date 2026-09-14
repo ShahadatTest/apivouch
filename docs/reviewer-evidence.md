@@ -6,22 +6,24 @@ This document points to evidence; it does not assign a score or claim acceptance
 
 | Gate | Evidence after deployment |
 |---|---|
-| Callable | Root workbench, `/docs`, project REST API, and `/mcp/{project_id}` |
+| Callable | Root verified-outcome demo, `/docs`, product MCP at `/mcp`, project REST API, and `/mcp/{project_id}` |
 | Version-bound | `/health` and `/.well-known/xagent-verification.json` return the deployed 40-character commit |
 | Reproducible | Pinned dependencies, root Dockerfile, Docker Compose, Render blueprint, exact test/run commands |
 | Safe to evaluate | Read-only automatic boundary, structured errors, bounded network calls, SSRF checks, no accepted/stored credentials |
-| Useful for agents | JSON Schemas, MCP safety annotations, stable result envelope, explicit limits and error semantics |
+| Useful for agents | Multi-provider outcome routing, JSON Schemas, MCP safety annotations, stable receipts, explicit limits and refusal semantics |
 | Exhaustive claims are real | Server-owned pagination traversal; caller cannot upload evidence; any failed obligation blocks certification |
 
 ## Quality evidence
 
 ### Real agent and user value
 
-APIVouch completes a task that a prompt cannot reliably complete: it calls a documented API repeatedly, records runtime observations, validates them against the declared contract, detects shape drift, and serves the derived tools through MCP.
+APIVouch completes a task that a prompt cannot reliably complete: it calls independent providers, validates the returned outcomes, rejects disagreement and constraint violations, and issues a commit-bound integrity receipt. Its provider-qualification lab also inspects documented APIs repeatedly, detects runtime drift, and serves derived tools through MCP.
 
 ### Demonstrated capability quality
 
-- Self-contained demo supplies deterministic test conditions without a third-party API.
+- The first self-contained demo routes four provider fixtures, rejects a schema failure and an HTTP failure, selects only from the agreeing pair, then re-verifies the stored receipt.
+- Normal REST and MCP requests require distinct configured and post-redirect network origins; the demo bypass is explicit in its receipt.
+- The provider-qualification demo supplies deterministic OpenAPI test conditions without a third-party API.
 - Every observation records status, latency, content type, JSON validity, schema validity, and a bounded payload sample.
 - Findings distinguish missing documentation from observed runtime mismatch.
 - The generated contract records the basis of every inserted change.
@@ -30,7 +32,7 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls a doc
 
 ### Engineering and maintainability
 
-- 38 unit and REST/MCP integration tests, including adversarial proof cases.
+- 46 unit and REST/MCP integration tests, including disagreement, budget, receipt-tampering, origin-independence, and adversarial pagination-proof cases.
 - Ruff, Python compilation, JavaScript syntax, YAML parsing, secret-pattern, file-count, and size checks.
 - REST and MCP calls share one runtime and error model.
 - No LLM or vendor API is required.
@@ -38,7 +40,7 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls a doc
 
 ### MCP productization readiness
 
-- Stateless JSON-RPC endpoint implements `initialize`, `notifications/initialized`, `ping`, `tools/list`, and `tools/call`.
+- Product and generated-project JSON-RPC endpoints implement `initialize`, `notifications/initialized`, `ping`, `tools/list`, and `tools/call`.
 - Generated inputs and outputs use JSON Schema.
 - Tools carry read-only, destructive, idempotent, and open-world annotations.
 - Invalid arguments, authentication errors, rate limits, upstream failures, invalid JSON, schema mismatch, and confirmation requirements have stable codes.
@@ -47,8 +49,9 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls a doc
 
 - One-container deployment and same-origin dashboard/API.
 - Free self-contained demo and downloadable evidence pack.
-- Atomic paid unit: one Agent Readiness Evidence Pack.
-- Clear expansion path: scheduled drift monitoring, retained history, private credentials, team access control, and alerts.
+- Atomic paid unit: one Verified Outcome selected under caller-provided cost and latency limits.
+- The current demo makes no false settlement claim; x402 settlement is a documented post-verification integration point.
+- Clear expansion path: x402 settlement, scheduled drift monitoring, retained history, private credentials, team access control, and outcome SLAs.
 
 ## Exact verification commands
 

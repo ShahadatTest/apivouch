@@ -59,3 +59,32 @@ class MCPRequest(BaseModel):
     id: str | int | None = None
     method: str
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+class OutcomeProvider(BaseModel):
+    """A public, credential-free provider that can return the requested outcome."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=80)
+    url: str = Field(min_length=8, max_length=2048)
+    result_path: str | None = Field(default=None, max_length=256)
+    expected_schema: dict[str, Any] | None = None
+    price_usd: float = Field(default=0, ge=0, le=1000)
+
+
+class OutcomeConstraints(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_price_usd: float = Field(default=1, ge=0, le=1000)
+    max_latency_ms: int = Field(default=5000, ge=50, le=30000)
+    minimum_agreement: int = Field(default=2, ge=1, le=5)
+    numeric_tolerance_percent: float = Field(default=1, ge=0, le=25)
+
+
+class OutcomeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    goal: str = Field(min_length=3, max_length=500)
+    providers: list[OutcomeProvider] = Field(min_length=2, max_length=5)
+    constraints: OutcomeConstraints = Field(default_factory=OutcomeConstraints)

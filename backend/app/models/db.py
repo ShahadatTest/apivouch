@@ -30,6 +30,14 @@ class ProjectRow(Base):
     proof_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
+class OutcomeReceiptRow(Base):
+    __tablename__ = "outcome_receipts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    created_at: Mapped[str] = mapped_column(String(40))
+    receipt_json: Mapped[str] = mapped_column(Text)
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("projects")}

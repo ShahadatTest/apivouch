@@ -4,6 +4,7 @@ let project = null;
 let tests = [];
 let tools = [];
 let proof = null;
+let outcomeReceipt = null;
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
@@ -32,7 +33,8 @@ function busy(button, state, label = "Working…") {
 
 function message(target, value, ok = false) {
   target.textContent = value || "";
-  target.style.color = ok ? "var(--green)" : "var(--red)";
+  if (target.id === "outcomeMessage") target.style.color = ok ? "#74e1ae" : "#ff9b95";
+  else target.style.color = ok ? "var(--green)" : "var(--red)";
 }
 
 async function checkHealth() {
@@ -153,6 +155,36 @@ function renderScores() {
   $("scoreCards").innerHTML = Object.entries(breakdown).map(([key, value]) => `<div class="tool"><h4>${esc(key.replaceAll("_", " "))}</h4><div style="font-size:28px;font-weight:850">${esc(value)} <span style="font-size:13px;color:var(--muted)">/ ${max[key] || 15}</span></div></div>`).join("");
 }
 
+function renderOutcome(integrityValid) {
+  const receipt = outcomeReceipt;
+  $("outcomeResult").style.display = "block";
+  $("outcomeVerdict").textContent = receipt.verdict;
+  $("outcomeProvider").textContent = receipt.selected_provider || "none";
+  $("outcomeAgreement").textContent = `${receipt.agreement.providers}/${receipt.agreement.required}`;
+  $("outcomePrice").textContent = `$${Number(receipt.selected_price_usd || 0).toFixed(3)}`;
+  $("outcomeAttempts").innerHTML = receipt.attempts.map((attempt) => {
+    const selected = attempt.status === "SELECTED";
+    const detail = selected ? `trust ${attempt.trust_score} · ${attempt.latency_ms} ms` : attempt.reason || `${attempt.latency_ms} ms`;
+    return `<div class="attempt"><div class="attempt-top"><b>${esc(attempt.name)}</b><span class="tag ${selected ? "passed" : "failed"}">${esc(attempt.status)}</span></div><p>${esc(detail)} · $${Number(attempt.price_usd).toFixed(3)}</p></div>`;
+  }).join("");
+  const proof = {receipt_id: receipt.receipt_id, result: receipt.result, selected_provider: receipt.selected_provider, deployment_commit: receipt.deployment_commit, fingerprint: receipt.integrity.fingerprint, integrity_verified_after_storage: integrityValid};
+  $("outcomeReceipt").innerHTML = `<span class="${integrityValid ? "integrity-ok" : "integrity-bad"}">${integrityValid ? "✓ RECEIPT INTEGRITY VERIFIED" : "✕ INTEGRITY CHECK FAILED"}</span>\n${esc(JSON.stringify(proof, null, 2))}`;
+}
+
+async function runOutcomeDemo() {
+  const button = $("outcomeBtn");
+  busy(button, true, "Calling 4 providers…");
+  message($("outcomeMessage"), "");
+  try {
+    outcomeReceipt = await jsonPost("/api/outcomes/demo", {});
+    busy(button, true, "Verifying stored receipt…");
+    const stored = await request(`/api/outcomes/receipts/${outcomeReceipt.receipt_id}`);
+    renderOutcome(stored.integrity_valid);
+    message($("outcomeMessage"), "Two bad providers were rejected. No payment was moved; the selected price is a transparent quote for future x402 settlement.", true);
+  } catch (error) { message($("outcomeMessage"), error.message); }
+  finally { busy(button, false); }
+}
+
 function renderProof() {
   const select = $("proofOperation");
   const previous = select.value;
@@ -232,6 +264,7 @@ $("testBtn").addEventListener("click", collectEvidence);
 $("contractBtn").addEventListener("click", generateContract);
 $("proofBtn").addEventListener("click", runProof);
 $("exportBtn").addEventListener("click", exportPack);
+$("outcomeBtn").addEventListener("click", runOutcomeDemo);
 checkHealth();
 const linkedProject = new URLSearchParams(window.location.search).get("project");
 if (linkedProject && /^[a-f0-9]{12}$/.test(linkedProject)) {

@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from app.services import exhaustiveness
 from app.services.exhaustiveness import prove_exhaustive_claim
 from app.services.http_client import SafeResponse

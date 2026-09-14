@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from itertools import count
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 
 router = APIRouter(prefix="/demo")
 _weather_calls = count()
@@ -97,3 +97,23 @@ async def items(cursor: str | None = None, limit: int = Query(default=3, ge=1, l
         "total": len(_catalog),
         "snapshot_id": "demo-catalog-v1",
     }
+
+
+@router.get("/providers/atlas", include_in_schema=False)
+async def atlas_provider():
+    return {"provider": "atlas", "quote": {"amount_usd": 18.40, "eta_minutes": 38}, "observed_at": "live"}
+
+
+@router.get("/providers/beacon", include_in_schema=False)
+async def beacon_provider():
+    return {"provider": "beacon", "quote": {"amount_usd": 18.44, "eta_minutes": 35}, "observed_at": "live"}
+
+
+@router.get("/providers/legacy", include_in_schema=False)
+async def legacy_provider():
+    return {"provider": "legacy", "quote": {"amount_usd": "call us", "eta_minutes": None}, "observed_at": "live"}
+
+
+@router.get("/providers/offline", include_in_schema=False)
+async def offline_provider():
+    return Response(content='{"error":"temporarily unavailable"}', status_code=503, media_type="application/json")

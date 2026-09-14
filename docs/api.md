@@ -2,6 +2,24 @@
 
 All responses are JSON unless otherwise noted. Interactive documentation is served at `/docs`.
 
+## Verified outcomes
+
+### `POST /api/outcomes/execute`
+
+Calls two to five credential-free public `GET` providers concurrently. Each provider declares a URL, optional dotted `result_path`, optional JSON Schema, and quoted `price_usd`. Constraints set maximum selected-provider price, maximum latency, minimum agreeing providers, and numeric tolerance.
+
+Configured providers must have unique network origins. Redirects are resolved through the bounded fetcher and duplicate final origins are rejected as well. URL query values are used for the request but redacted from the receipt.
+
+The response is an `apivouch-outcome-receipt-v1`. `VERIFIED` includes a selected result and provider. `UNVERIFIED` always has a null result/provider and zero selected price.
+
+### `POST /api/outcomes/demo`
+
+Runs the explicitly self-contained four-fixture demonstration. Its receipt sets `provider_independence.required` to `false`; this bypass is not available in caller-supplied REST or MCP requests.
+
+### `GET /api/outcomes/receipts/{receipt_id}`
+
+Returns the stored receipt and `integrity_valid`, recomputed from its canonical JSON without trusting the stored fingerprint.
+
 ## Project lifecycle
 
 ### `POST /api/projects`
@@ -84,6 +102,8 @@ Returns the complete `apivouch-agent-pack-v1`: score, observations, findings, ch
 Deletes exactly one stored project.
 
 ## MCP transport
+
+`POST /mcp` is the product-level MCP server. It exposes `apivouch_resolve_verified_outcome` with the same validation, selection, receipt, and refusal semantics as the REST endpoint.
 
 `POST /mcp/{project_id}` accepts JSON-RPC 2.0 methods:
 

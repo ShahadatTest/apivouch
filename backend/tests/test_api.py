@@ -1,5 +1,6 @@
-from app.main import app
 from fastapi.testclient import TestClient
+
+from app.main import app
 
 client = TestClient(app)
 
@@ -55,6 +56,31 @@ def test_unknown_mcp_tool_returns_protocol_error():
     pid = create_project()
     response = client.post(f"/mcp/{pid}", json={"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "missing", "arguments": {}}}).json()
     assert response["error"]["code"] == -32602
+
+
+def test_product_mcp_exposes_verified_outcome_router():
+    initialized = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}).json()
+    assert initialized["result"]["serverInfo"]["name"] == "APIVouch Outcome Router"
+    listed = client.post("/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}).json()
+    tool = listed["result"]["tools"][0]
+    assert tool["name"] == "apivouch_resolve_verified_outcome"
+    assert tool["annotations"]["readOnlyHint"] is True
+
+
+def test_outcome_api_rejects_same_origin_aliases_before_network():
+    response = client.post(
+        "/api/outcomes/execute",
+        json={
+            "goal": "Resolve the same fact",
+            "providers": [
+                {"name": "first", "url": "https://example.com/a"},
+                {"name": "second", "url": "https://example.com/b"},
+            ],
+            "constraints": {"minimum_agreement": 2},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Every provider must use a distinct network origin"
 
 
 def test_delete_project_is_recoverably_scoped():
