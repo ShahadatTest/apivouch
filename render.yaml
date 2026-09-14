@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: apivouch
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: PROJECT_SLUG
+        value: apivouch
+      - key: DATABASE_URL
+        value: sqlite:////tmp/apivouch.db
+      - key: ALLOW_PRIVATE_NETWORK
+        value: "false"
+      - key: REQUEST_TIMEOUT
+        value: "10"
+      - key: MAX_RETRIES
+        value: "1"
