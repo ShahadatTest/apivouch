@@ -208,6 +208,12 @@ function renderOutcome(integrityValid) {
   $("outcomeIntegrity").className = integrityValid ? "integrity-ok" : "integrity-bad";
   $("outcomeIntegrity").textContent = integrityValid ? "✓ Receipt integrity verified" : "✕ Integrity check failed";
   $("outcomeReceipt").textContent = JSON.stringify(proof, null, 2);
+  const proofLink = $("outcomeProofLink");
+  if (proofLink) {
+    proofLink.href = `/receipts/${receipt.receipt_id}`;
+    proofLink.style.display = "inline-flex";
+    proofLink.textContent = "View public proof →";
+  }
 }
 
 async function runOutcomeDemo(live = false) {
@@ -294,33 +300,252 @@ async function exportPack() {
   finally { busy(button, false); }
 }
 
+let explorerReceipt = null;
+let explorerReceiptId = null;
+let labScenarios = [];
+
+function receiptIdFromPath() {
+  const match = window.location.pathname.match(/^\/receipts\/([A-Za-z0-9_-]{1,64})\/?$/);
+  if (!match) return null;
+  return match[1];
+}
+
+function isReceiptRoute() {
+  return window.location.pathname.startsWith("/receipts/");
+}
+
+function enterReceiptMode(receiptId) {
+  const explorer = $("receiptExplorer");
+  if (explorer) explorer.classList.add("active");
+  document.querySelectorAll(".hero,#outcome,#chaos-lab,#quick-connect,#launch,#workspace").forEach((section) => {
+    if (section) section.style.display = "none";
+  });
+  if (!/^[0-9a-f]{24}$/.test(receiptId || "")) {
+    renderReceiptError("Receipt not found", "This public proof link is malformed. Receipt IDs are 24 lowercase hexadecimal characters.");
+    return;
+  }
+  explorerReceiptId = receiptId;
+  loadReceiptExplorer(receiptId);
+}
+
+function receiptStatusBadge(verdict) {
+  const verified = verdict === "VERIFIED";
+  return `<span class="receipt-verdict ${verified ? "verified" : "unverified"}">${esc(verdict || "UNVERIFIED")}</span>`;
+}
+
+function renderReceiptError(title, detail) {
+  const body = $("receiptBody");
+  if (!body) return;
+  body.innerHTML = `<div class="receipt-error">${esc(title)}</div><p class="sub">${esc(detail)}</p>`;
+  $("receiptJson").textContent = "—";
+  $("receiptTitle").textContent = "Receipt Explorer";
+}
+
+function renderReceiptExplorer(envelope) {
+  const receipt = envelope.receipt;
+  const integrityValid = envelope.integrity_valid === true;
+  const authenticity = envelope.authenticity || {state: "unavailable", valid: false};
+  explorerReceipt = receipt;
+  const body = $("receiptBody");
+  const hasSelection = receipt.selected_provider && receipt.result !== null && receipt.result !== undefined;
+  const agreement = receipt.agreement || {};
+  const integrity = receipt.integrity || {};
+  const authenticityState = authenticity.state || "unavailable";
+  const keyId = receipt.authenticity && receipt.authenticity.key_id ? receipt.authenticity.key_id : null;
+  const attempts = Array.isArray(receipt.attempts) ? receipt.attempts : [];
+  const integrityLine = integrityValid
+    ? '<div class="receipt-error" style="background:var(--mint);color:var(--green)">✓ Integrity verified — fingerprint recomputed from canonical receipt JSON.</div>'
+    : '<div class="receipt-error">✕ Integrity check failed — this receipt does not match its fingerprint.</div>';
+  const authenticityLine = authenticityState === "signed" && authenticity.valid
+    ? `<div class="receipt-note">Authenticity: signed and valid. Same-origin signature discovery proves consistency with this deployment, not independent truth of upstream data.</div>`
+    : authenticityState === "unsigned"
+    ? `<div class="receipt-note">Authenticity: unsigned. Hash integrity is verified separately; no issuer signature is present. Same-origin signature discovery proves consistency with this deployment, not independent truth of upstream data.</div>`
+    : `<div class="receipt-note">Authenticity: ${esc(authenticityState)} (valid: ${authenticity.valid ? "true" : "false"}). Shown separately from hash integrity; an unavailable signature is never a success. Same-origin signature discovery proves consistency with this deployment, not independent truth of upstream data.</div>`;
+  body.innerHTML = `
+    <div style="margin:10px 0">${receiptStatusBadge(receipt.verdict)}</div>
+    ${integrityLine}
+    <div class="receipt-grid">
+      <div class="receipt-field"><span>Receipt ID</span><b>${esc(receipt.receipt_id)}</b></div>
+      <div class="receipt-field"><span>Created</span><b>${esc(receipt.created_at)}</b></div>
+      <div class="receipt-field"><span>Goal</span><b>${esc(receipt.goal)}</b></div>
+      <div class="receipt-field"><span>Selected result / provider</span><b>${hasSelection ? `${esc(JSON.stringify(receipt.result))} · ${esc(receipt.selected_provider)}` : "no result selected"}</b></div>
+      <div class="receipt-field"><span>Agreement</span><b>${esc(agreement.providers ?? "—")} achieved vs ${esc(agreement.required ?? "—")} required</b></div>
+      <div class="receipt-field"><span>Quoted price</span><b>$${esc(Number(receipt.selected_price_usd || 0).toFixed(3))} · not charged / no settlement</b></div>
+      <div class="receipt-field"><span>Deployment commit</span><b>${esc(receipt.deployment_commit)}</b></div>
+      <div class="receipt-field"><span>Receipt format</span><b>${esc(receipt.format)}</b></div>
+      <div class="receipt-field"><span>Fingerprint</span><b>${esc(integrity.fingerprint || "—")}</b></div>
+      <div class="receipt-field"><span>Fingerprint algorithm</span><b>${esc(integrity.algorithm || "—")}</b></div>
+      <div class="receipt-field"><span>Integrity valid</span><b>${esc(integrityValid ? "true" : "false")}</b></div>
+      <div class="receipt-field"><span>Authenticity</span><b>${esc(authenticityState)} · valid: ${esc(authenticity.valid ? "true" : "false")}${keyId ? ` · key ${esc(keyId)}` : ""}</b></div>
+    </div>
+    <h3 style="margin:18px 0 8px">Provider attempts</h3>
+    <div class="receipt-attempts">${attempts.map((attempt) => `
+      <div class="receipt-attempt"><div class="attempt-top"><b>${esc(attempt.name)}</b><span class="tag ${attempt.status === "SELECTED" ? "passed" : "failed"}">${esc(attempt.status)}</span></div>
+      <p>URL: ${esc(attempt.url || "—")}</p>
+      <p>Latency: ${esc(attempt.latency_ms ?? "—")} ms · Price: $${esc(Number(attempt.price_usd || 0).toFixed(3))}${attempt.trust_score !== undefined && attempt.trust_score !== null ? ` · Trust: ${esc(attempt.trust_score)}` : ""}</p>
+      <p>${esc(attempt.reason || (attempt.status === "SELECTED" ? "Selected from the agreeing group" : "No reason recorded"))}</p></div>`).join("") || '<div class="empty">No provider attempts recorded.</div>'}
+    </div>
+    ${authenticityLine}`;
+  $("receiptTitle").textContent = `Receipt ${receipt.receipt_id}`;
+  $("receiptJson").textContent = JSON.stringify(receipt, null, 2);
+}
+
+async function loadReceiptExplorer(receiptId) {
+  const body = $("receiptBody");
+  if (body) body.innerHTML = '<p class="receipt-loading">Loading receipt…</p>';
+  $("receiptJson").textContent = "—";
+  try {
+    const envelope = await request(`/api/outcomes/receipts/${receiptId}`);
+    renderReceiptExplorer(envelope);
+  } catch (error) {
+    const safe = String(error.message || "");
+    if (/not found/i.test(safe)) renderReceiptError("Receipt not found", "No stored receipt matches this ID on this deployment.");
+    else renderReceiptError("Receipt could not be loaded", "Please try again. No diagnostic details are exposed on this page.");
+  }
+}
+
+async function verifyReceiptAgain() {
+  if (!explorerReceiptId) return;
+  const button = $("receiptVerifyBtn");
+  busy(button, true, "Verifying…");
+  try { await loadReceiptExplorer(explorerReceiptId); }
+  finally { busy(button, false); }
+}
+
+async function copyTextValue(button, value) {
+  const original = button.textContent;
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(value);
+    else {
+      const helper = document.createElement("textarea");
+      helper.value = value;
+      helper.setAttribute("readonly", "");
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.appendChild(helper);
+      helper.select();
+      if (!document.execCommand("copy")) throw new Error("Clipboard unavailable");
+      helper.remove();
+    }
+    button.textContent = "Copied ✓";
+  } catch { button.textContent = "Copy failed"; }
+  window.setTimeout(() => { button.textContent = original; }, 1600);
+}
+
+function downloadReceiptJson() {
+  if (!explorerReceipt) return;
+  const blob = new Blob([JSON.stringify(explorerReceipt, null, 2)], {type: "application/json"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `apivouch-receipt-${explorerReceipt.receipt_id}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function labCardHtml(entry) {
+  const state = entry.status || "idle";
+  const badge = state === "idle" ? '<span class="lab-badge idle">Not run</span>'
+    : entry.passed ? '<span class="lab-badge pass">PASS</span>' : '<span class="lab-badge fail">FAIL</span>';
+  const observed = entry.observed || "—";
+  const evidence = entry.evidence || entry.description || "";
+  const receiptId = entry.receiptId || "—";
+  const proofLink = entry.receiptId ? `<p><a href="/receipts/${esc(entry.receiptId)}">View proof →</a></p>` : "";
+  return `<div class="lab-card"><h3>${esc(entry.title || entry.id)}</h3>${badge}
+    <p>Expected verdict: ${esc(entry.expected || "—")} · Observed: ${esc(observed)}</p>
+    <p class="lab-meta">${esc(evidence)}</p>
+    <p class="lab-meta">Receipt: ${esc(receiptId)}</p>${proofLink}</div>`;
+}
+
+function renderLabCards(resultsById) {
+  const container = $("labCards");
+  if (!container) return;
+  container.innerHTML = labScenarios.map((scenario) => {
+    const entry = (resultsById && resultsById[scenario.id]) || {id: scenario.id, title: scenario.title, description: scenario.description, expected: scenario.expected_verdict, status: "idle"};
+    return labCardHtml(entry);
+  }).join("");
+}
+
+async function loadLabCatalog() {
+  try {
+    const catalog = await request("/api/outcomes/lab");
+    labScenarios = Array.isArray(catalog.scenarios) ? catalog.scenarios : [];
+    renderLabCards(null);
+  } catch { labScenarios = []; }
+}
+
+function decisiveEvidence(result) {
+  const failed = (result.checks || []).find((check) => !check.passed);
+  if (failed) return failed.summary || failed.id;
+  const key = (result.checks || []).find((check) => ["agreement-met", "disagreement-rejection", "schema-rejection", "upstream-rejection", "zero-provider-calls", "final-origin-rejection", "budget-rejection", "refusal-selects-nothing", "selected-provider-eligible"].includes(check.id));
+  return (key && key.summary) || `Observed ${result.observed_verdict}`;
+}
+
+async function runAllLabScenarios() {
+  const button = $("labRunAll");
+  const summary = $("labSummary");
+  busy(button, true, "Running safety scenarios…");
+  message($("labMessage"), "");
+  try {
+    if (!labScenarios.length) await loadLabCatalog();
+    if (!labScenarios.length) throw new Error("Safety catalog unavailable");
+    const resultsById = {};
+    renderLabCards(resultsById);
+    let passedCount = 0;
+    for (const scenario of labScenarios) {
+      const card = resultsById[scenario.id] || {id: scenario.id, title: scenario.title, description: scenario.description, expected: scenario.expected_verdict, status: "running"};
+      try {
+        const result = await request(`/api/outcomes/lab/${scenario.id}`, {method: "POST"});
+        const passed = result.passed === true;
+        if (passed) passedCount += 1;
+        resultsById[scenario.id] = {id: scenario.id, title: scenario.title, description: scenario.description, expected: scenario.expected_verdict, observed: result.observed_verdict, passed, status: passed ? "pass" : "fail", evidence: decisiveEvidence(result), receiptId: result.receipt && result.receipt.receipt_id};
+      } catch (error) {
+        resultsById[scenario.id] = {id: scenario.id, title: scenario.title, description: scenario.description, expected: scenario.expected_verdict, observed: "ERROR", passed: false, status: "fail", evidence: "Scenario request failed safely without exposing diagnostics.", receiptId: null};
+      }
+      renderLabCards(resultsById);
+    }
+    summary.textContent = `${passedCount}/${labScenarios.length} safety scenarios behaved as expected`;
+    message($("labMessage"), passedCount === labScenarios.length ? "All safety refusals behaved as expected. UNVERIFIED is a passing safety result." : "One or more scenarios did not behave as expected.", passedCount === labScenarios.length);
+  } catch (error) { message($("labMessage"), "Safety scenarios could not run. Please try again."); }
+  finally { busy(button, false); }
+}
+
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item === button));
   document.querySelectorAll(".tabview").forEach((view) => view.classList.toggle("active", view.id === `tab-${button.dataset.tab}`));
 }));
 document.querySelectorAll("[data-copy-target]").forEach((button) => button.addEventListener("click", () => copyTarget(button)));
-$("findingSummary").addEventListener("click", (event) => {
+if ($("findingSummary")) $("findingSummary").addEventListener("click", (event) => {
   const button = event.target.closest("[data-finding-filter]");
   if (!button) return;
   findingFilter = button.dataset.findingFilter;
   renderFindings();
 });
-$("analyzeBtn").addEventListener("click", () => createFromInput($("analyzeBtn")));
-$("pasteBtn").addEventListener("click", () => createFromInput($("pasteBtn")));
-$("demoBtn").addEventListener("click", runDemo);
-$("testBtn").addEventListener("click", collectEvidence);
-$("contractBtn").addEventListener("click", generateContract);
-$("proofBtn").addEventListener("click", runProof);
-$("exportBtn").addEventListener("click", exportPack);
-$("liveOutcomeBtn").addEventListener("click", () => runOutcomeDemo(true));
-$("outcomeBtn").addEventListener("click", () => runOutcomeDemo(false));
+if ($("analyzeBtn")) $("analyzeBtn").addEventListener("click", () => createFromInput($("analyzeBtn")));
+if ($("pasteBtn")) $("pasteBtn").addEventListener("click", () => createFromInput($("pasteBtn")));
+if ($("demoBtn")) $("demoBtn").addEventListener("click", runDemo);
+if ($("testBtn")) $("testBtn").addEventListener("click", collectEvidence);
+if ($("contractBtn")) $("contractBtn").addEventListener("click", generateContract);
+if ($("proofBtn")) $("proofBtn").addEventListener("click", runProof);
+if ($("exportBtn")) $("exportBtn").addEventListener("click", exportPack);
+if ($("liveOutcomeBtn")) $("liveOutcomeBtn").addEventListener("click", () => runOutcomeDemo(true));
+if ($("outcomeBtn")) $("outcomeBtn").addEventListener("click", () => runOutcomeDemo(false));
+if ($("receiptVerifyBtn")) $("receiptVerifyBtn").addEventListener("click", verifyReceiptAgain);
+if ($("receiptCopyLinkBtn")) $("receiptCopyLinkBtn").addEventListener("click", (event) => copyTextValue(event.currentTarget, `${window.location.origin}/receipts/${explorerReceiptId || ""}`));
+if ($("receiptCopyJsonBtn")) $("receiptCopyJsonBtn").addEventListener("click", (event) => copyTextValue(event.currentTarget, explorerReceipt ? JSON.stringify(explorerReceipt, null, 2) : "—"));
+if ($("receiptDownloadBtn")) $("receiptDownloadBtn").addEventListener("click", downloadReceiptJson);
+if ($("labRunAll")) $("labRunAll").addEventListener("click", runAllLabScenarios);
 checkHealth();
-$("productMcpUrl").textContent = `${API}/mcp`;
-const query = new URLSearchParams(window.location.search);
-const linkedProject = query.get("project");
-if (linkedProject && /^[a-f0-9]{12}$/.test(linkedProject)) {
-  openProject(linkedProject).catch((error) => message($("launchMessage"), `Linked project could not be loaded: ${error.message}`));
-}
-if (query.get("demo") === "fixture") {
-  runOutcomeDemo(false);
+if ($("productMcpUrl")) $("productMcpUrl").textContent = `${API}/mcp`;
+if (isReceiptRoute()) {
+  enterReceiptMode(receiptIdFromPath());
+} else {
+  loadLabCatalog();
+  const query = new URLSearchParams(window.location.search);
+  const linkedProject = query.get("project");
+  if (linkedProject && /^[a-f0-9]{12}$/.test(linkedProject)) {
+    openProject(linkedProject).catch((error) => message($("launchMessage"), `Linked project could not be loaded: ${error.message}`));
+  }
+  if (query.get("demo") === "fixture") {
+    runOutcomeDemo(false);
+  }
 }

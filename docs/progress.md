@@ -1,5 +1,15 @@
 # Release status
 
+## Completed for 1.3
+
+- Public Receipt Explorer at `/receipts/<24-hex-id>` with no-cache policy, safe 404 handling, escaped client rendering, separate integrity/authenticity display, and Verify/Copy/Download/Back controls
+- Visible **View public proof →** link after every outcome demo
+- Deterministic Chaos & Refusal Lab with read-only `GET /api/outcomes/lab` catalog and allowlisted `POST /api/outcomes/lab/{scenario_id}` execution through the real outcome path
+- Six server-owned scenarios: `consensus-success` (VERIFIED), `provider-disagreement`, `schema-invalid`, `upstream-failure`, `over-budget` (zero provider calls), `origin-convergence` (final-origin rejection), each stored in the isolated `outcome_lab_receipts` table (bounded by `MAX_LAB_RECEIPTS`, never evicting production) and proven canonical JSON round-trip exactly equal on retrieval
+- Exact zero-byte lab POST contract (Content-Length > 0 rejected before the stream is touched; chunked bodies rejected on the first chunk without buffering; startup-validated `MAX_LAB_RECEIPTS`) and fixed fixture timestamp/latency so repeated runs yield identical canonical receipt JSON, receipt ID, fingerprint, and signature; one deterministic row per scenario for a fixed deployment commit and signing configuration, with atomic idempotent concurrent writes
+- Scenario PASS kept distinct from receipt VERIFIED/UNVERIFIED; correct UNVERIFIED refusals display as green passes
+- Documentation updated to state deterministic fixtures are not live-provider evidence, same-origin discovery limits, and no payment execution
+
 ## Completed for 1.2
 
 - Proof-of-outcome routing across two to five provider candidates
@@ -34,9 +44,10 @@
 
 VPS Caddy/app/PostgreSQL configuration, scheduled/manual independent verification,
 safe secret scanning, and operator backup/restore/rollback documentation are
-implemented. These files are not deployment evidence. Signed v2 receipts,
+implemented. Those files alone are not deployment evidence. Signed v2 receipts,
 readiness and modern MCP have local tests; modern MCP is not officially certified.
-Public URL and final reviewed release SHA remain pending. No payment is moved.
+The public URL is `https://apivouch.sklab.cc`; each release must still match its
+reviewed SHA through the independent deployment gate. No payment is moved.
 
 - Deploy the final public commit.
 - Confirm `/health` and `/.well-known/xagent-verification.json` report that exact 40-character commit.

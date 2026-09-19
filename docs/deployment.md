@@ -1,7 +1,8 @@
 # Deployment and Operations
 
-These are operator instructions, not evidence of a deployment. Public URL and
-reviewed release commit remain **pending**. The primary capability is a verified
+These are operator instructions, not evidence by themselves. The public service is
+`https://apivouch.sklab.cc`; each reviewed release still requires the independent
+deployment gate to match its exact commit. The primary capability is a verified
 outcome or honest refusal, not an API directory. No payment is executed.
 
 ## Ubuntu VPS First Deploy

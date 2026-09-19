@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -94,3 +95,21 @@ async def dashboard_script():
         media_type="application/javascript",
         headers={"Cache-Control": "no-cache, max-age=0, must-revalidate"},
     )
+
+
+_RECEIPT_PAGE_PATTERN = re.compile(r"[0-9a-f]{24}\Z")
+
+
+@app.get("/receipts/{receipt_id}", include_in_schema=False)
+async def receipt_page(receipt_id: str):
+    if _RECEIPT_PAGE_PATTERN.fullmatch(receipt_id) is None:
+        raise HTTPException(404, "Receipt not found")
+    if (_frontend / "index.html").exists():
+        return FileResponse(
+            _frontend / "index.html",
+            headers={
+                "Cache-Control": "no-cache, max-age=0, must-revalidate",
+                "X-Robots-Tag": "noindex, nofollow",
+            },
+        )
+    raise HTTPException(404, "Receipt not found")

@@ -58,7 +58,7 @@ Every score is deterministic. The before/after comparison is a re-analysis of tw
 ## Five-minute verification
 
 ```bash
-git clone https://github.com/sklabstudio/apivouch.git
+git clone https://github.com/ShahadatTest/apivouch.git
 cd apivouch
 docker compose up --build
 ```
@@ -106,6 +106,9 @@ boundaries are documented in [SECURITY.md](SECURITY.md).
 | Run the three-origin real-data demo | `POST /api/outcomes/live-demo` |
 | Run the four-provider failure demo | `POST /api/outcomes/demo` |
 | Retrieve and re-verify a receipt | `GET /api/outcomes/receipts/{id}` |
+| Public human-readable receipt proof | `GET /receipts/{24-hex-id}` |
+| List deterministic safety scenarios | `GET /api/outcomes/lab` |
+| Run one deterministic safety scenario | `POST /api/outcomes/lab/{scenario_id}` |
 | Product-level outcome MCP server | `POST /mcp` |
 | Import a URL or inline contract | `POST /api/projects` |
 | Upload JSON/YAML | `POST /api/projects/upload` |
@@ -154,6 +157,10 @@ Interactive OpenAPI documentation is available at `/docs`.
 ```
 
 No provider is selected when the agreement requirement is not met. An `UNVERIFIED` response is a successful safety decision, not a fabricated best guess.
+
+Every outcome demo shows a visible **View public proof →** link to `/receipts/<receipt_id>`. The public Receipt Explorer at `/receipts/{24-lowercase-hex-id}` fetches the authoritative `GET /api/outcomes/receipts/{id}` response and renders verdict, timestamps, goal, selection, agreement, quoted price (labelled not charged / no settlement), commit, format, fingerprint, separate integrity and authenticity states, signing key ID, and all provider attempts. Same-origin signature discovery proves consistency with this deployment, not independent truth of upstream data. No payment is executed.
+
+The Chaos & Refusal Lab runs six deterministic in-process safety scenarios through the real verified-outcome path: `consensus-success` (VERIFIED), `provider-disagreement` (UNVERIFIED), `schema-invalid` (UNVERIFIED), `upstream-failure` (UNVERIFIED), `over-budget` (UNVERIFIED, zero provider calls), and `origin-convergence` (UNVERIFIED, final-origin rejection). `POST /api/outcomes/lab/{scenario_id}` accepts an exact zero-byte body; any declared or streamed body byte is rejected with HTTP 400 without buffering caller bytes. Each scenario uses a fixed fixture timestamp and fixed provider latency, so repeated runs yield identical canonical receipt JSON, receipt ID, fingerprint, and signature; the fixed timestamp is fixture evidence, never live freshness. Lab receipts are stored in an isolated table bounded by `MAX_LAB_RECEIPTS` that can never evict production evidence, and every stored receipt is proven canonical JSON round-trip exactly equal on retrieval. Scenario PASS means the receipt behaved as expected; receipt VERIFIED/UNVERIFIED is the outcome verdict. A correct UNVERIFIED refusal is a green PASS. Deterministic fixtures are not live-provider evidence.
 
 Verify an exported receipt independently:
 
@@ -248,7 +255,8 @@ RECEIPT_SIGNING_PRIVATE_KEY_B64=<inject through secret environment, never source
 The Render blueprint configures private Postgres in the same Singapore region.
 Check current plan retention and availability. Render supplies `RENDER_GIT_COMMIT`
 when `GIT_COMMIT` is unset; independently check that it equals the reviewed SHA.
-Public URL and final review commit are **pending**; configuration is not deployment evidence.
+The public VPS deployment is `https://apivouch.sklab.cc`; accept a release only
+after `/health` and the deployment proof both report its exact reviewed commit.
 
 Daily/manual verification uses repository variables `APIVOUCH_DEPLOYMENT_URL`
 and `APIVOUCH_EXPECTED_COMMIT`. Missing values fail. Deterministic verification
@@ -279,7 +287,7 @@ render.yaml               stable deployment blueprint
 - Authenticated endpoints are analyzed but cannot be live-tested by the public service.
 - Pagination is auto-detected for common cursor, page, and offset conventions; unusual APIs can supply response paths and the request token parameter, but cannot supply observed evidence.
 - Inferred schemas describe observed samples and are not asserted as the API owner's canonical contract.
-- Local development defaults to SQLite; production templates use PostgreSQL. No public deployment is claimed. The API lacks authentication and tenant isolation; do not store private customer evidence.
+- Local development defaults to SQLite; the public VPS deployment and production templates use PostgreSQL. The API lacks authentication and tenant isolation; do not store private customer evidence.
 - SHA-256 proves integrity, not issuer authenticity. Ed25519 authenticates relative to a trusted public key; same-origin discovery is not independent identity attestation or proof of upstream truth.
 - Fixtures and mocked tests do not demonstrate live availability. Modern MCP is a locally tested JSON subset, not officially certified; see [protocol limits](docs/mcp-modern.md).
 

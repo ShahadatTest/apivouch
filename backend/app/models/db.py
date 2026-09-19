@@ -76,6 +76,21 @@ class OutcomeReceiptRow(Base):
     receipt_json: Mapped[str] = mapped_column(Text)
 
 
+class OutcomeLabReceiptRow(Base):
+    """Separate persistence boundary for Chaos Lab fixture receipts.
+
+    Lab traffic must never count against, retain, or evict production
+    evidence in ``outcome_receipts``. ``Base.metadata.create_all`` creates
+    this table on existing deployments without touching production rows.
+    """
+
+    __tablename__ = "outcome_lab_receipts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    created_at: Mapped[str] = mapped_column(String(40))
+    receipt_json: Mapped[str] = mapped_column(Text)
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
     columns = {column["name"] for column in inspect(engine).get_columns("projects")}

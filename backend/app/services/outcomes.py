@@ -7,6 +7,7 @@ import json
 import math
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -14,13 +15,28 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import httpx
 from cryptography.exceptions import InvalidSignature
 from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core import signing
-from app.core.config import GIT_COMMIT, MAX_OUTCOME_RECEIPTS
-from app.models.db import OutcomeReceiptRow, engine
+from app.core.config import GIT_COMMIT, MAX_LAB_RECEIPTS, MAX_OUTCOME_RECEIPTS
+from app.models.db import OutcomeLabReceiptRow, OutcomeReceiptRow, engine
 from app.services.http_client import SafeResponse, safe_request
 from app.services.schemas import validate_instance
+
+
+@dataclass(frozen=True)
+class LabTiming:
+    """Private timing context for server-owned deterministic fixtures.
+
+    Only the Chaos Lab may supply this; production execution always uses
+    the default ``None`` (real UTC clock and real monotonic latency).
+    The HTTP caller can never control these values.
+    """
+
+    created_at: str
+    latency_ms: int
 
 
 def canonical_json(value: Any) -> str:
@@ -82,6 +98,7 @@ async def probe_provider(
     max_latency_ms: int,
     *,
     request_fn: RequestFunction | None = None,
+    latency_ms_override: int | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     base = {
@@ -96,7 +113,10 @@ async def probe_provider(
     }
     try:
         response = await (request_fn or safe_request)("GET", provider["url"])
-        latency_ms = max(1, int((time.perf_counter() - started) * 1000))
+        if latency_ms_override is not None:
+            latency_ms = latency_ms_override
+        else:
+            latency_ms = max(1, int((time.perf_counter() - started) * 1000))
         base.update({"latency_ms": latency_ms, "upstream_status": response.status_code, "resolved_origin": provider_origin(response.url)})
         if not 200 <= response.status_code < 300:
             base["reason"] = f"HTTP {response.status_code}"
@@ -129,7 +149,11 @@ async def probe_provider(
         )
         return base
     except (HTTPException, httpx.HTTPError, OSError, ValueError) as exc:
-        base.update({"latency_ms": max(1, int((time.perf_counter() - started) * 1000)), "reason": str(exc)[:300]})
+        if latency_ms_override is not None:
+            latency_ms = latency_ms_override
+        else:
+            latency_ms = max(1, int((time.perf_counter() - started) * 1000))
+        base.update({"latency_ms": latency_ms, "reason": str(exc)[:300]})
         return base
 
 
@@ -182,6 +206,7 @@ def receipt_authenticity(receipt: dict[str, Any]) -> dict:
 
 
 def store_receipt(receipt: dict[str, Any]) -> None:
+    """Store production evidence; counts and evicts production rows only."""
     db = Session(engine)
     existing = db.get(OutcomeReceiptRow, receipt["receipt_id"])
     if not existing:
@@ -202,6 +227,7 @@ def store_receipt(receipt: dict[str, Any]) -> None:
 
 
 def load_receipt(receipt_id: str) -> dict[str, Any] | None:
+    """Load production evidence only."""
     db = Session(engine)
     row = db.get(OutcomeReceiptRow, receipt_id)
     value = json.loads(row.receipt_json) if row else None
@@ -209,11 +235,156 @@ def load_receipt(receipt_id: str) -> dict[str, Any] | None:
     return value
 
 
+class LabWriteConflict(Exception):
+    """A same-ID lab row already holds different canonical JSON.
+
+    Raised instead of overwriting conflicting evidence; carries no SQL,
+    paths, driver messages, or receipt contents.
+    """
+
+
+class LabStorageUnavailable(Exception):
+    """A lab write failed safely; carries no internals for the caller."""
+
+
+_LAB_WRITE_MAX_ATTEMPTS = 3
+_LAB_WRITE_RETRY_DELAY_S = 0.005
+_POSTGRES_LAB_RETENTION_LOCK = text(
+    "LOCK TABLE outcome_lab_receipts IN SHARE ROW EXCLUSIVE MODE"
+)
+
+
+def _is_transient_lab_lock_error(exc: BaseException) -> bool:
+    """True only for documented transient lock/busy failures.
+
+    SQLite reports concurrent-writer contention as SQLITE_BUSY (5) or
+    SQLITE_LOCKED (6), surfaced as OperationalError. Every other database
+    error must never be retried.
+    """
+    if not isinstance(exc, OperationalError):
+        return False
+    orig = getattr(exc, "orig", None)
+    code = getattr(orig, "sqlite_errorcode", None)
+    if code in (5, 6):
+        return True
+    message = str(orig or exc).lower()
+    return "database is locked" in message or "database table is locked" in message
+
+
+def _serialize_postgres_lab_retention(db: Session) -> None:
+    """Acquire the PostgreSQL table lock used by the retention transaction."""
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(_POSTGRES_LAB_RETENTION_LOCK)
+
+
+def _store_lab_receipt_attempt(receipt: dict[str, Any], payload: str) -> None:
+    """One idempotent lab write inside context-managed transactions.
+
+    Sessions close and failed writes roll back on every path. A uniqueness
+    race resolves atomically on the primary key: after a lost insert the
+    winner's row is re-read in a fresh transaction and kept only when its
+    stored canonical JSON is exactly equal; conflicting evidence fails
+    closed instead of being overwritten.
+    """
+    raced = False
+    try:
+        with Session(engine) as db, db.begin():
+            # PostgreSQL permits concurrent writers to count the same rows,
+            # so serialize this table's retention decision before reading.
+            # SQLite is serialized below by flushing the insert first; that
+            # acquires its database write lock before count-and-delete.
+            _serialize_postgres_lab_retention(db)
+            current = db.get(OutcomeLabReceiptRow, receipt["receipt_id"])
+            if current is not None:
+                if current.receipt_json != payload:
+                    raise LabWriteConflict
+                return
+            db.add(
+                OutcomeLabReceiptRow(
+                    id=receipt["receipt_id"],
+                    created_at=receipt["created_at"],
+                    receipt_json=payload,
+                )
+            )
+            # On SQLite this is the serialization boundary. It must precede
+            # the retention count so concurrent distinct inserts cannot all
+            # make a stale keep/evict decision. PostgreSQL is already locked.
+            db.flush()
+            overflow = db.query(OutcomeLabReceiptRow).count() - MAX_LAB_RECEIPTS
+            if overflow > 0:
+                oldest = (
+                    db.query(OutcomeLabReceiptRow)
+                    .filter(OutcomeLabReceiptRow.id != receipt["receipt_id"])
+                    .order_by(OutcomeLabReceiptRow.created_at, OutcomeLabReceiptRow.id)
+                    .limit(overflow)
+                    .all()
+                )
+                for row in oldest:
+                    db.delete(row)
+    except IntegrityError:
+        raced = True
+    if raced:
+        with Session(engine) as db:
+            current = db.get(OutcomeLabReceiptRow, receipt["receipt_id"])
+            if current is not None and current.receipt_json == payload:
+                return
+        raise LabWriteConflict
+
+
+def store_lab_receipt(receipt: dict[str, Any]) -> None:
+    """Store a Chaos Lab fixture receipt in the isolated lab table.
+
+    Lab writes never count against, retain, or evict production receipts.
+    Lab retention is bounded independently by MAX_LAB_RECEIPTS. Simultaneous
+    identical runs are idempotent; only documented transient SQLite
+    lock/busy errors are retried, at most _LAB_WRITE_MAX_ATTEMPTS attempts
+    in total. All failures leave production rows unchanged and raise safe,
+    content-free errors.
+    """
+    payload = canonical_json(receipt)
+    for attempt in range(_LAB_WRITE_MAX_ATTEMPTS):
+        try:
+            _store_lab_receipt_attempt(receipt, payload)
+            return
+        except LabWriteConflict:
+            raise
+        except OperationalError as exc:
+            if _is_transient_lab_lock_error(exc) and attempt + 1 < _LAB_WRITE_MAX_ATTEMPTS:
+                time.sleep(_LAB_WRITE_RETRY_DELAY_S * (attempt + 1))
+                continue
+            raise LabStorageUnavailable from None
+        except LabStorageUnavailable:
+            raise
+        except Exception:  # noqa: BLE001 - any unexpected failure maps to one safe error
+            raise LabStorageUnavailable from None
+    raise LabStorageUnavailable
+
+
+def load_lab_receipt(receipt_id: str) -> dict[str, Any] | None:
+    """Load Chaos Lab fixture evidence only."""
+    with Session(engine) as db:
+        row = db.get(OutcomeLabReceiptRow, receipt_id)
+        return json.loads(row.receipt_json) if row else None
+
+
+def load_receipt_any(receipt_id: str) -> dict[str, Any] | None:
+    """Load production evidence first, then lab fixtures.
+
+    Production receipts take precedence; a lab write can never overwrite
+    or evict a production row, so collisions fail closed toward production.
+    """
+    value = load_receipt(receipt_id)
+    if value is not None:
+        return value
+    return load_lab_receipt(receipt_id)
+
+
 async def execute_verified_outcome(
     payload: dict[str, Any],
     *,
     require_independent_origins: bool = True,
     request_fn: RequestFunction | None = None,
+    lab_timing: LabTiming | None = None,
 ) -> dict[str, Any]:
     signer = signing.SIGNING_CONFIG
     signer.check_issuance()
@@ -226,12 +397,14 @@ async def execute_verified_outcome(
         raise ValueError("Every provider must use a distinct network origin")
     affordable = [provider for provider in payload["providers"] if provider.get("price_usd", 0) <= constraints["max_price_usd"]]
     over_budget = [provider for provider in payload["providers"] if provider not in affordable]
+    fixed_latency = lab_timing.latency_ms if lab_timing is not None else None
     attempts = await asyncio.gather(
         *(
             probe_provider(
                 provider,
                 constraints["max_latency_ms"],
                 request_fn=request_fn,
+                latency_ms_override=fixed_latency,
             )
             for provider in affordable
         )
@@ -277,7 +450,10 @@ async def execute_verified_outcome(
         selected = min(agreement_group, key=lambda item: (-item["trust_score"], item["price_usd"], item["latency_ms"], item["name"]))
         selected["status"] = "SELECTED"
 
-    created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    if lab_timing is not None:
+        created_at = lab_timing.created_at
+    else:
+        created_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     public_attempts = [{key: value for key, value in attempt.items() if key != "value"} for attempt in attempts]
     receipt: dict[str, Any] = {
         "format": "apivouch-outcome-receipt-v1",

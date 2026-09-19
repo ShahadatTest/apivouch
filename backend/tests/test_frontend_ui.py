@@ -18,7 +18,7 @@ def test_copy_controls_cover_receipt_and_mcp_endpoints():
         assert f'data-copy-target="{target}"' in INDEX
     assert "async function copyTarget(button)" in APP
     assert "navigator.clipboard.writeText(value)" in APP
-    assert 'src="/app.js?v=20260919-ui2"' in INDEX
+    assert 'src="/app.js?v=20260919-ui4"' in INDEX
 
 
 def test_judge_facing_navigation_and_score_labels_are_explicit():

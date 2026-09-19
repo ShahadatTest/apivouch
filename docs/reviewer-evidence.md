@@ -23,6 +23,9 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 
 - The real-data demo resolves one USD→EUR reference rate across three independently operated public origins and requires two schema-valid values within 2% tolerance.
 - The first self-contained demo routes four provider fixtures, rejects a schema failure and an HTTP failure, selects only from the agreeing pair, then re-verifies the stored receipt.
+- Every demo exposes a **View public proof →** link to `/receipts/<24-hex-id>`; the explorer fetches the authoritative receipt API, escapes all receipt-controlled strings, and shows separate integrity and authenticity states.
+- The Chaos & Refusal Lab runs six deterministic in-process scenarios (`consensus-success`, `provider-disagreement`, `schema-invalid`, `upstream-failure`, `over-budget` with zero provider calls, `origin-convergence` with final-origin rejection) through the real outcome path. Scenario PASS is distinct from receipt VERIFIED/UNVERIFIED; deterministic fixtures are not live-provider evidence.
+- Lab execution accepts no request body (non-empty bodies return HTTP 400), uses a fixed fixture timestamp and latency so repeated runs are canonical JSON round-trip exactly equal with identical IDs and signatures, and stores fixtures in an isolated table bounded by `MAX_LAB_RECEIPTS` that can never evict production evidence; both stores remain retrievable through the public receipt endpoint with production precedence.
 - Normal REST and MCP requests require distinct configured and post-redirect network origins; the demo bypass is explicit in its receipt.
 - The provider-qualification demo supplies deterministic OpenAPI test conditions without a third-party API.
 - Every observation records status, latency, content type, JSON validity, schema validity, and a bounded payload sample.
@@ -73,9 +76,10 @@ After deployment, follow `docs/demo.md`, then run the official X-Agent offline a
 
 ## Current Status
 
-Public URL: **pending**. Reviewed/deployed SHA: **pending**. No production deploy,
-TLS issuance, backup restore, official conformance run, or live-provider success
-is asserted here. Current test results must come from an execution transcript.
+Public URL: `https://apivouch.sklab.cc`. The reviewed/deployed SHA must be read from
+both `/health` and the deployment proof and matched by the independent gate for each
+release. Backup restore, official conformance, and live-provider success are not
+asserted here. Current test results must come from an execution transcript.
 
 - `test_deployment_uvicorn.py`: real disposable loopback HTTP, in-memory DB and environment-only key, not production.
 - `test_signed_receipts.py`: disposable-key signing/integrity checks, not operator certification.
@@ -85,5 +89,6 @@ is asserted here. Current test results must come from an execution transcript.
 - `deploy/vps/`: Caddy/app/PostgreSQL recipe with [operations](deployment.md), rollback and backup/restore guidance; Render remains supported.
 
 SHA-256 integrity is not authenticity. V2 authenticates only relative to a trusted
-key; same-origin discovery is not independent upstream attestation. No payment
-is moved, regardless of quoted prices.
+key; same-origin discovery is not independent upstream attestation. The explorer
+states this explicitly. No payment is moved, regardless of quoted prices; the UI
+labels every quote as not charged / no settlement.

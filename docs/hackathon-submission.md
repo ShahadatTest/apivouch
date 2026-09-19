@@ -39,6 +39,8 @@ For a network-independent reviewer check:
 python scripts/verify_hackathon.py
 ```
 
+Judges can also open the public Receipt Explorer at `/receipts/<24-hex-receipt-id>` from any demo **View public proof →** link, and run the **Chaos & Refusal Lab** section (**Run all safety scenarios**) for six deterministic in-process safety proofs. Lab execution accepts no request body, repeats with identical canonical receipt JSON and signatures from a fixed fixture timestamp, stores fixtures in an isolated table that can never evict production evidence, and proves canonical JSON round-trip exactly equal on retrieval. Scenario PASS is distinct from receipt VERIFIED/UNVERIFIED; a correct UNVERIFIED refusal is a green PASS. Deterministic fixtures are not live-provider evidence.
+
 ## MCP surface
 
 - `apivouch_resolve_verified_outcome`: call 2–5 independent providers and issue
@@ -78,7 +80,7 @@ provider costs but deliberately performs no settlement.
 - Deployment proof: `https://apivouch.sklab.cc/.well-known/xagent-verification.json`
 - Exact 40-character deployed commit: returned by both endpoints above and
   checked by `scripts/verify_deployment.py`
-- Public source repository: `https://github.com/sklabstudio/apivouch`
+- Public source repository: `https://github.com/ShahadatTest/apivouch`
 
 The deployment gate requires `/health` and the deployment proof to return the
 same expected commit before release evidence is accepted.
@@ -88,12 +90,13 @@ same expected commit before release evidence is accepted.
 The primary story is one verified outcome or honest refusal. SHA-256 integrity
 is not authenticity; v2 Ed25519 authenticates relative to a trusted key.
 Same-origin discovery does not independently identify an operator or attest
-upstream calls. No payment or settlement is implemented.
+upstream calls. The public explorer states this limitation explicitly. No payment or settlement is implemented; quoted prices are labelled not charged / no settlement.
 
 `verify_hackathon.py` uses local TestClient, not a deployment. Use the independent
 `verify_deployment.py` with explicit HTTPS origin, exact expected SHA, and
 deterministic mode as the required deployment gate. Live mode is separate;
 exit 2 is unavailable, not success. Fixtures/mocks are not live evidence. Modern
-MCP is a locally tested JSON subset, not official conformance. VPS/Render recipes
-and scheduled verification exist, but production URL, reviewed release SHA,
-TLS issuance, backup restore, and official validator evidence remain pending.
+MCP is a locally tested JSON subset, not official conformance. The HTTPS VPS
+deployment is public; its reviewed release SHA is accepted only when the independent
+gate matches both health and proof responses. Backup restore and official validator
+evidence are not claimed here.

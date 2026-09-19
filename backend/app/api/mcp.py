@@ -27,7 +27,7 @@ from app.services.exhaustiveness import prove_exhaustive_claim
 from app.services.importer import extract_endpoints
 from app.services.outcomes import (
     execute_verified_outcome,
-    load_receipt,
+    load_receipt_any,
     receipt_authenticity,
     store_receipt,
     verify_receipt,
@@ -161,7 +161,7 @@ async def capability_mcp(request: MCPRequest):
                 lookup = ReceiptLookupRequest.model_validate(arguments)
             except ValidationError as exc:
                 return _error(request.id, -32602, "Invalid receipt lookup", {"detail": str(exc)[:500]})
-            receipt = load_receipt(lookup.receipt_id)
+            receipt = load_receipt_any(lookup.receipt_id)
             if receipt is None:
                 return _error(request.id, -32004, "Receipt not found", {"receipt_id": lookup.receipt_id})
             outcome = {"receipt": receipt, "integrity_valid": verify_receipt(receipt), "authenticity": receipt_authenticity(receipt)}
