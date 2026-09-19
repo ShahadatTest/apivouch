@@ -5,6 +5,7 @@ let tests = [];
 let tools = [];
 let proof = null;
 let outcomeReceipt = null;
+let findingFilter = "all";
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
@@ -35,6 +36,33 @@ function message(target, value, ok = false) {
   target.textContent = value || "";
   if (target.id === "outcomeMessage") target.style.color = ok ? "#74e1ae" : "#ff9b95";
   else target.style.color = ok ? "var(--green)" : "var(--red)";
+}
+
+async function copyTarget(button) {
+  const target = $(button.dataset.copyTarget);
+  if (!target) return;
+  const value = target.textContent.trim();
+  const original = button.textContent;
+  let helper = null;
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(value);
+    else {
+      helper = document.createElement("textarea");
+      helper.value = value;
+      helper.setAttribute("readonly", "");
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.appendChild(helper);
+      helper.select();
+      if (!document.execCommand("copy")) throw new Error("Clipboard unavailable");
+    }
+    button.textContent = "Copied ✓";
+  } catch {
+    button.textContent = "Copy failed";
+  } finally {
+    if (helper) helper.remove();
+  }
+  window.setTimeout(() => { button.textContent = original; }, 1600);
 }
 
 async function checkHealth() {
@@ -124,7 +152,7 @@ async function refresh() {
   const comparison = project.comparison || {};
   $("sourceScore").textContent = comparison.before_score ?? project.score?.overall ?? "—";
   $("contractScore").textContent = comparison.after_score ?? "—";
-  $("delta").textContent = comparison.improvement > 0 ? `+${comparison.improvement}` : "";
+  $("delta").textContent = comparison.improvement > 0 ? `↑ +${comparison.improvement} points` : "";
   const evidenced = tests.filter((test) => ["passed", "warning", "failed"].includes(test.status)).length;
   $("coverage").textContent = `${evidenced}/${project.endpoints.length}`;
   $("step2").classList.toggle("done", tests.length > 0);
@@ -146,7 +174,15 @@ function renderEndpoints() {
 function renderFindings() {
   const severityOrder = {critical: 0, high: 1, medium: 2, low: 3, info: 4};
   const findings = [...(project.issues || [])].sort((a,b) => (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9));
-  $("findingList").innerHTML = findings.length ? findings.map((finding) => `<div class="finding"><div><span class="tag ${esc(finding.severity)}">${esc(finding.severity)}</span></div><div><b>${esc(finding.code)}</b><p>${esc(finding.message)}</p><p><strong>Recommended:</strong> ${esc(finding.suggested_repair)}</p><span class="tag">${esc(finding.endpoint)}</span></div></div>`).join("") : '<div class="empty">No findings.</div>';
+  const counts = findings.reduce((result, finding) => ({...result, [finding.severity]: (result[finding.severity] || 0) + 1}), {});
+  if (findingFilter !== "all" && !counts[findingFilter]) findingFilter = "all";
+  const filters = ["all", "critical", "high", "medium", "low", "info"].filter((severity) => severity === "all" || counts[severity]);
+  $("findingSummary").innerHTML = filters.map((severity) => {
+    const count = severity === "all" ? findings.length : counts[severity];
+    return `<button type="button" class="severity-filter ${findingFilter === severity ? "active" : ""}" data-finding-filter="${severity}">${severity === "all" ? "All" : esc(severity)} · ${count}</button>`;
+  }).join("");
+  const visible = findingFilter === "all" ? findings : findings.filter((finding) => finding.severity === findingFilter);
+  $("findingList").innerHTML = visible.length ? visible.map((finding) => `<div class="finding"><div><span class="tag ${esc(finding.severity)}">${esc(finding.severity)}</span></div><div><b>${esc(finding.code)}</b><p>${esc(finding.message)}</p><p><strong>Recommended:</strong> ${esc(finding.suggested_repair)}</p><span class="tag">${esc(finding.endpoint)}</span></div></div>`).join("") : '<div class="empty">No findings in this severity.</div>';
 }
 
 function renderScores() {
@@ -169,7 +205,9 @@ function renderOutcome(integrityValid) {
     return `<div class="attempt"><div class="attempt-top"><b>${esc(attempt.name)}</b><span class="tag ${selected ? "passed" : "failed"}">${esc(attempt.status)}</span></div><p>${esc(detail)} · $${Number(attempt.price_usd).toFixed(3)}</p></div>`;
   }).join("");
   const proof = {receipt_id: receipt.receipt_id, result: receipt.result, selected_provider: receipt.selected_provider, deployment_commit: receipt.deployment_commit, fingerprint: receipt.integrity.fingerprint, integrity_verified_after_storage: integrityValid};
-  $("outcomeReceipt").innerHTML = `<span class="${integrityValid ? "integrity-ok" : "integrity-bad"}">${integrityValid ? "✓ RECEIPT INTEGRITY VERIFIED" : "✕ INTEGRITY CHECK FAILED"}</span>\n${esc(JSON.stringify(proof, null, 2))}`;
+  $("outcomeIntegrity").className = integrityValid ? "integrity-ok" : "integrity-bad";
+  $("outcomeIntegrity").textContent = integrityValid ? "✓ Receipt integrity verified" : "✕ Integrity check failed";
+  $("outcomeReceipt").textContent = JSON.stringify(proof, null, 2);
 }
 
 async function runOutcomeDemo(live = false) {
@@ -260,6 +298,13 @@ document.querySelectorAll(".tab").forEach((button) => button.addEventListener("c
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item === button));
   document.querySelectorAll(".tabview").forEach((view) => view.classList.toggle("active", view.id === `tab-${button.dataset.tab}`));
 }));
+document.querySelectorAll("[data-copy-target]").forEach((button) => button.addEventListener("click", () => copyTarget(button)));
+$("findingSummary").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-finding-filter]");
+  if (!button) return;
+  findingFilter = button.dataset.findingFilter;
+  renderFindings();
+});
 $("analyzeBtn").addEventListener("click", () => createFromInput($("analyzeBtn")));
 $("pasteBtn").addEventListener("click", () => createFromInput($("pasteBtn")));
 $("demoBtn").addEventListener("click", runDemo);
@@ -270,6 +315,7 @@ $("exportBtn").addEventListener("click", exportPack);
 $("liveOutcomeBtn").addEventListener("click", () => runOutcomeDemo(true));
 $("outcomeBtn").addEventListener("click", () => runOutcomeDemo(false));
 checkHealth();
+$("productMcpUrl").textContent = `${API}/mcp`;
 const query = new URLSearchParams(window.location.search);
 const linkedProject = query.get("project");
 if (linkedProject && /^[a-f0-9]{12}$/.test(linkedProject)) {
