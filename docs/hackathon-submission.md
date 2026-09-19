@@ -71,16 +71,17 @@ SLA monitoring, and managed evidence retention. Signed v2 exports are already
 implemented. The current release reports quoted
 provider costs but deliberately performs no settlement.
 
-## Required values before packaging the official PR
+## Deployment values
 
-- Public deployment URL: **pending**
-- Health URL: `<deployment>/health`
-- Deployment proof: `<deployment>/.well-known/xagent-verification.json`
-- Exact 40-character reviewed commit: **pending until final push**
+- Public deployment URL: `https://apivouch.sklab.cc`
+- Health URL: `https://apivouch.sklab.cc/health`
+- Deployment proof: `https://apivouch.sklab.cc/.well-known/xagent-verification.json`
+- Exact 40-character deployed commit: returned by both endpoints above and
+  checked by `scripts/verify_deployment.py`
 - Public source repository: `https://github.com/sklabstudio/apivouch`
 
-Do not replace the pending fields until the deployed service returns the exact
-same commit from both proof endpoints.
+The deployment gate requires `/health` and the deployment proof to return the
+same expected commit before release evidence is accepted.
 
 ## Evidence Boundary
 

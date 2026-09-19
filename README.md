@@ -8,9 +8,14 @@ An autonomous agent should not trust the first API that answers. A provider can 
 
 > Agents do not need another API directory. They need proof that the outcome they are about to use survived independent verification.
 
+**Live deployment:** [https://apivouch.sklab.cc](https://apivouch.sklab.cc) ·
+[health](https://apivouch.sklab.cc/health) ·
+[deployment proof](https://apivouch.sklab.cc/.well-known/xagent-verification.json) ·
+[OpenAPI docs](https://apivouch.sklab.cc/docs)
+
 ## The 30-second demo
 
-Open the deployed app and click **Call real providers**. APIVouch resolves the current USD→EUR reference rate across Frankfurter, Floatrates, and ExchangeRate-API—three independently operated public origins. At least two must return schema-valid values within a 2% tolerance or the result is `UNVERIFIED`.
+Open [the deployed app](https://apivouch.sklab.cc) and click **Call real providers**. APIVouch resolves the current USD→EUR reference rate across Frankfurter, Floatrates, and ExchangeRate-API—three independently operated public origins. At least two must return schema-valid values within a 2% tolerance or the result is `UNVERIFIED`.
 
 Then click **Run failure fixture**. Four deterministic, in-process provider fixtures compete to return the same delivery quote:
 
