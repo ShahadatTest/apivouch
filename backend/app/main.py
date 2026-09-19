@@ -3,7 +3,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.demo import router as demo_router
@@ -19,6 +20,7 @@ app = FastAPI(
     title="APIVouch",
     version=APP_VERSION,
     description="Evidence-based API diagnostics, agent-contract generation, and dynamic MCP tools.",
+    docs_url=None,
 )
 if CORS_ORIGINS:
     app.add_middleware(
@@ -34,6 +36,53 @@ app.include_router(projects_router, prefix="/api")
 app.include_router(outcomes_router, prefix="/api")
 app.include_router(mcp_router)
 app.include_router(demo_router)
+
+
+@app.get("/docs", include_in_schema=False)
+async def api_docs():
+    swagger = get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - Swagger UI",
+    )
+    html = swagger.body.decode("utf-8")
+    html = html.replace(
+        "</head>",
+        """
+    <style>
+      body { margin: 0; }
+      .apivouch-docs-nav {
+        align-items: center; background: #17211d; box-sizing: border-box;
+        color: #dbe8e1; display: flex; font-family: system-ui, sans-serif;
+        gap: 18px; min-height: 58px; padding: 10px 24px; position: sticky;
+        top: 0; z-index: 10000;
+      }
+      .apivouch-docs-nav a {
+        align-items: center; background: #dff7e9; border-radius: 9px;
+        color: #17211d; display: inline-flex; font-weight: 700;
+        padding: 9px 14px; text-decoration: none;
+      }
+      .apivouch-docs-nav a:hover, .apivouch-docs-nav a:focus-visible {
+        background: #bff0d2; outline: 2px solid #fff; outline-offset: 2px;
+      }
+      .apivouch-docs-nav span { font-size: 14px; font-weight: 650; }
+      @media (max-width: 520px) {
+        .apivouch-docs-nav { padding: 9px 12px; }
+        .apivouch-docs-nav span { display: none; }
+      }
+    </style>
+  </head>""",
+    ).replace(
+        "<body>",
+        """<body>
+    <nav class="apivouch-docs-nav" aria-label="Documentation navigation">
+      <a href="/" aria-label="Back to APIVouch home">← Back to APIVouch</a>
+      <span>Interactive API reference</span>
+    </nav>""",
+    )
+    return HTMLResponse(
+        html,
+        headers={"Cache-Control": "no-cache, max-age=0, must-revalidate"},
+    )
 
 
 @app.get("/health")
