@@ -31,6 +31,13 @@ def test_health_and_verification_are_commit_bound():
     assert proof["mcpEndpoint"] == "/mcp"
 
 
+def test_frontend_assets_must_revalidate_to_prevent_stale_ui_logic():
+    for path in ("/", "/app.js"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache, max-age=0, must-revalidate"
+
+
 def test_project_contract_export_and_dynamic_mcp_flow():
     pid = create_project()
     project = client.get(f"/api/projects/{pid}").json()

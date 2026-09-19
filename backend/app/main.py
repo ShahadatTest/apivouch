@@ -80,10 +80,17 @@ _frontend = next((path for path in _frontend_candidates if path.exists()), _fron
 @app.get("/", include_in_schema=False)
 async def dashboard():
     if (_frontend / "index.html").exists():
-        return FileResponse(_frontend / "index.html")
+        return FileResponse(
+            _frontend / "index.html",
+            headers={"Cache-Control": "no-cache, max-age=0, must-revalidate"},
+        )
     return {"service": "apivouch", "docs": "/docs"}
 
 
 @app.get("/app.js", include_in_schema=False)
 async def dashboard_script():
-    return FileResponse(_frontend / "app.js", media_type="application/javascript")
+    return FileResponse(
+        _frontend / "app.js",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, max-age=0, must-revalidate"},
+    )
