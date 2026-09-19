@@ -85,7 +85,7 @@ def test_mcp_resolve_store_and_reverify_receipt(monkeypatch):
         },
     ).json()["result"]
     assert verified["isError"] is False
-    assert verified["structuredContent"] == {"receipt": receipt, "integrity_valid": True}
+    assert verified["structuredContent"] == {"receipt": receipt, "integrity_valid": True, "authenticity": {"state": "unsigned", "valid": False}}
 
     rest_copy = client.get(f"/api/outcomes/receipts/{receipt['receipt_id']}")
     assert rest_copy.status_code == 200

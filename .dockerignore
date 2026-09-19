@@ -8,3 +8,17 @@
 *.db
 work
 xagent-submission
+**/.env
+**/.env.*
+**/*.db
+**/*.db-*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.sql
+**/*.dump
+**/*.backup
+**/.ruff_cache
+**/backups
+**/verification-artifacts

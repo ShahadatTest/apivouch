@@ -4,11 +4,13 @@ import json
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app.core import config
 from app.schemas.api import OutcomeRequest
 from app.services.http_client import SafeResponse
 from app.services.outcomes import (
     execute_verified_outcome,
     load_receipt,
+    receipt_authenticity,
     store_receipt,
     verify_receipt,
 )
@@ -54,7 +56,9 @@ async def execute(body: OutcomeRequest):
 
 @router.post("/demo")
 async def demo(request: Request):
-    base = str(request.base_url).rstrip("/")
+    if not config.deployment_config_ready():
+        raise HTTPException(503, "Deployment configuration unavailable")
+    base = config.PUBLIC_BASE_URL or str(request.base_url).rstrip("/")
     expected = {"type": "number", "minimum": 0}
     body = OutcomeRequest.model_validate(
         {
@@ -100,4 +104,4 @@ async def receipt(receipt_id: str):
     value = load_receipt(receipt_id)
     if not value:
         raise HTTPException(404, "Receipt not found")
-    return {"receipt": value, "integrity_valid": verify_receipt(value)}
+    return {"receipt": value, "integrity_valid": verify_receipt(value), "authenticity": receipt_authenticity(value)}

@@ -2,6 +2,10 @@
 
 ## One-click path
 
+Public URL and reviewed commit remain pending. This is a runbook, not an executed
+transcript. Start with the deterministic failure fixture, then treat real-provider
+calls separately. Mocked tests and fixtures do not prove live availability.
+
 1. Open the deployed root page.
 2. Choose **Call real providers** and confirm that at least two of Frankfurter, Floatrates, and ExchangeRate-API agree on the USD→EUR reference rate.
 3. Confirm `provider_independence.required` through the API receipt; all three URLs use distinct public origins and redirect convergence is checked.
@@ -42,3 +46,12 @@ The outcome demo intentionally proves that APIVouch refuses insufficient evidenc
 The provider-lab demo proves that APIVouch does not hide upstream variability. Different successful JSON shapes become `OBSERVED_SHAPE_DRIFT`; the generated schema represents the observed union and the MCP runtime provides a stable outer result envelope.
 
 It also demonstrates positive proof under a stable `demo-catalog-v1` snapshot. The collector receives page sizes only; all returned items, cursors, totals, and snapshot evidence come from the demo API itself.
+
+## Independent Gate
+
+Run `scripts/verify_deployment.py` with explicit `--base-url`, exact
+`--expected-commit`, and `--mode deterministic`; optionally follow with
+`--mode live`. Exit 2 means live UNVERIFIED, not success. See [verifier](deployment-verifier.md).
+The UI integrity indicator proves neither issuer identity nor upstream truth.
+Signed v2 adds authenticity relative to a trusted key. Prices are quotes, with
+no payment. See [modern MCP](mcp-modern.md) for direct calls and tested limits.

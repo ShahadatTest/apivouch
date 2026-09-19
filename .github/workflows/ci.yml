@@ -30,6 +30,8 @@ jobs:
       - name: Audit development dependencies
         run: python -m pip_audit --strict --progress-spinner off -r backend/requirements-dev.txt
       - run: python -m ruff check backend/app backend/tests examples scripts
+      - name: Scan tracked and unignored files without printing secret values
+        run: python scripts/scan_secrets.py
       - run: python -m compileall -q backend/app
       - run: python -m pytest -q
       - name: Verify reviewer capability and receipt

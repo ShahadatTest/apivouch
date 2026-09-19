@@ -10,7 +10,7 @@ Calls two to five credential-free public `GET` providers concurrently. Each prov
 
 Configured providers must have unique network origins. Redirects are resolved through the bounded fetcher and duplicate final origins are rejected as well. URL query values are used for the request but redacted from the receipt.
 
-The response is an `apivouch-outcome-receipt-v1`. `VERIFIED` includes a selected result and provider. `UNVERIFIED` always has a null result/provider and zero selected price.
+The response is an unsigned `apivouch-outcome-receipt-v1`, or an Ed25519-signed `apivouch-outcome-receipt-v2` when signing is configured. `VERIFIED` includes a selected result and provider. `UNVERIFIED` always has a null result/provider and zero selected price. Both verdicts are signed when enabled. Invalid signing configuration or a missing required key blocks issuance before provider calls. REST (including demos) and legacy MCP return safe HTTP 503; modern MCP returns HTTP 200 with `isError: true`. Runtime signing failures occur after provider evaluation and use the same transport-specific errors, without returning or storing a receipt or falling back to unsigned issuance. See [signed receipts](signed-receipts.md).
 
 ### `POST /api/outcomes/demo`
 
@@ -22,7 +22,7 @@ Calls Frankfurter, Floatrates, and ExchangeRate-API at distinct public origins t
 
 ### `GET /api/outcomes/receipts/{receipt_id}`
 
-Returns the stored receipt and `integrity_valid`, recomputed from its canonical JSON without trusting the stored fingerprint.
+Returns the unchanged stored receipt, `integrity_valid` recomputed from canonical JSON, and a separate `authenticity` object with `state` (`unsigned`, `signed`, `invalid`, or `unavailable`) and boolean `valid`. Unsigned receipts have `valid: false` without being integrity failures. MCP returns the same envelope; invalid/unavailable signed authenticity sets its `isError` flag.
 
 ### Product MCP tools at `POST /mcp`
 
@@ -116,7 +116,14 @@ Deletes exactly one stored project.
 
 `POST /mcp` is the product-level MCP server. It exposes `apivouch_resolve_verified_outcome` with the same validation, selection, receipt, and refusal semantics as the REST endpoint.
 
-`POST /mcp/{project_id}` accepts JSON-RPC 2.0 methods:
+Both endpoints support stateless modern `2026-07-28` `server/discover`,
+`tools/list`, and `tools/call`. Each request requires namespaced version and
+capabilities in `params._meta`, matching `MCP-Protocol-Version` and `Mcp-Method`
+headers, and `Mcp-Name` for calls. See [modern MCP](mcp-modern.md) for separate
+calls, exact errors, legacy separation, and tested limitations. This is not an
+official conformance claim.
+
+The preserved legacy interface accepts JSON-RPC 2.0 methods:
 
 - `initialize`
 - `notifications/initialized`
@@ -124,11 +131,20 @@ Deletes exactly one stored project.
 - `tools/list`
 - `tools/call`
 
-Supported protocol versions: `2024-11-05`, `2025-03-26`, and `2025-06-18`.
+Supported legacy initialization versions: `2024-11-05`, `2025-03-26`, and `2025-06-18`.
 
 `tools/list` includes `apivouch_prove_exhaustive_claim` whenever the project has a GET operation. It uses the same proof collector as the REST route.
 
 ## Deployment evidence
 
 - `GET /health` returns `status`, service version, and the exact deployed commit.
+- `GET /ready` checks bounded DB connectivity, deployment configuration, and signing; 200 means ready, 503 means not ready. It does not prove schema completeness.
 - `GET /.well-known/xagent-verification.json` returns schema version, submission slug, and the same commit.
+- `GET /.well-known/apivouch-signing-key.json` returns only the public Ed25519 key document, or 404 when signing is unconfigured, or safe 503 for invalid signing configuration.
+
+Proof URLs use validated `PUBLIC_BASE_URL`, not Host/forwarded headers. Production
+templates require signing and an exact SHA. Integrity is separate from issuer
+authenticity; same-origin discovery does not externally pin identity. Fixtures
+disable provider independence explicitly; mocked tests are not live evidence.
+No endpoint settles payment. There is no authentication/tenant isolation. VPS
+adds a 1 MB proxy body cap and timeouts; see [operations](deployment.md).

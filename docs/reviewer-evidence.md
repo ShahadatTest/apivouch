@@ -33,11 +33,11 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 
 ### Engineering and maintainability
 
-- 49 unit and REST/MCP integration tests, including the complete MCP resolve,
+- Unit and REST/MCP integration tests, including the complete MCP resolve,
   storage, re-verification, REST-parity path; disagreement; budget;
   receipt-tampering; origin-independence; bounded previews; and adversarial
   pagination-proof cases.
-- Ruff, Python compilation, JavaScript syntax, YAML parsing, secret-pattern, file-count, and size checks.
+- Ruff, Python compilation, JavaScript syntax, static deployment tests, and a value-suppressing secret-pattern scanner; execute commands for actual results.
 - REST and MCP calls share one runtime and error model.
 - No LLM or vendor API is required.
 - CI builds the production Docker image after all code checks.
@@ -60,7 +60,8 @@ APIVouch completes a task that a prompt cannot reliably complete: it calls indep
 ## Exact verification commands
 
 ```bash
-ruff check backend
+python -m ruff check backend/app backend/tests examples scripts
+python scripts/scan_secrets.py
 python -m compileall -q backend/app
 python -m pytest -q
 python scripts/verify_hackathon.py
@@ -69,3 +70,20 @@ docker build -t apivouch:review .
 ```
 
 After deployment, follow `docs/demo.md`, then run the official X-Agent offline and online validators against the submission directory.
+
+## Current Status
+
+Public URL: **pending**. Reviewed/deployed SHA: **pending**. No production deploy,
+TLS issuance, backup restore, official conformance run, or live-provider success
+is asserted here. Current test results must come from an execution transcript.
+
+- `test_deployment_uvicorn.py`: real disposable loopback HTTP, in-memory DB and environment-only key, not production.
+- `test_signed_receipts.py`: disposable-key signing/integrity checks, not operator certification.
+- `test_mcp_modern.py`: mocked-provider protocol checks and refusals, not official conformance.
+- `test_deployment_assets.py`: static safety/topology checks, not container execution.
+- `deployment-verification.yml`: daily/manual required deterministic gate, explicit URL/SHA, bounded sanitized artifacts. Missing configuration fails; optional live exit 2 stays non-success.
+- `deploy/vps/`: Caddy/app/PostgreSQL recipe with [operations](deployment.md), rollback and backup/restore guidance; Render remains supported.
+
+SHA-256 integrity is not authenticity. V2 authenticates only relative to a trusted
+key; same-origin discovery is not independent upstream attestation. No payment
+is moved, regardless of quoted prices.

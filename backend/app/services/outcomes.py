@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import math
@@ -11,9 +12,11 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
+from cryptography.exceptions import InvalidSignature
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core import signing
 from app.core.config import GIT_COMMIT, MAX_OUTCOME_RECEIPTS
 from app.models.db import OutcomeReceiptRow, engine
 from app.services.http_client import SafeResponse, safe_request
@@ -159,6 +162,25 @@ def verify_receipt(receipt: dict[str, Any]) -> bool:
     return integrity.get("fingerprint") == expected and candidate.get("receipt_id") == expected.split(":", 1)[1][:24]
 
 
+def receipt_authenticity(receipt: dict[str, Any]) -> dict:
+    if receipt.get("format") == "apivouch-outcome-receipt-v1" and "authenticity" not in receipt:
+        return {"state": "unsigned", "valid": False}
+    config = signing.SIGNING_CONFIG
+    auth = receipt.get("authenticity")
+    if not config.enabled or config.error:
+        return {"state": "unavailable", "valid": False}
+    try:
+        if receipt.get("format") != "apivouch-outcome-receipt-v2" or auth != {
+            "state": "signed", "algorithm": "Ed25519", "key_id": config.key_id,
+        } or receipt["integrity"].get("algorithm") != "SHA-256" or not verify_receipt(receipt):
+            return {"state": "invalid", "valid": False}
+        signature = base64.b64decode(receipt["integrity"]["signature"], validate=True)
+        config._key.public_key().verify(signature, (receipt["format"] + "\n" + receipt_fingerprint(receipt)[7:]).encode("utf-8"))
+    except (ValueError, TypeError, KeyError, InvalidSignature):
+        return {"state": "invalid", "valid": False}
+    return {"state": "signed", "valid": True}
+
+
 def store_receipt(receipt: dict[str, Any]) -> None:
     db = Session(engine)
     existing = db.get(OutcomeReceiptRow, receipt["receipt_id"])
@@ -193,6 +215,8 @@ async def execute_verified_outcome(
     require_independent_origins: bool = True,
     request_fn: RequestFunction | None = None,
 ) -> dict[str, Any]:
+    signer = signing.SIGNING_CONFIG
+    signer.check_issuance()
     constraints = payload["constraints"]
     names = [str(provider["name"]).casefold() for provider in payload["providers"]]
     if len(names) != len(set(names)):
@@ -270,7 +294,12 @@ async def execute_verified_outcome(
         "attempts": public_attempts,
         "deployment_commit": GIT_COMMIT,
     }
+    if signer.enabled:
+        receipt["format"] = "apivouch-outcome-receipt-v2"
+        receipt["authenticity"] = {"state": "signed", "algorithm": "Ed25519", "key_id": signer.key_id}
     fingerprint = receipt_fingerprint(receipt)
     receipt["receipt_id"] = fingerprint.split(":", 1)[1][:24]
     receipt["integrity"] = {"algorithm": "SHA-256", "fingerprint": fingerprint, "verifiable": True}
+    if signer.enabled:
+        receipt["integrity"]["signature"] = signer.sign((receipt["format"] + "\n" + fingerprint[7:]).encode("utf-8"))
     return receipt

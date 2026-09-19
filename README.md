@@ -46,7 +46,7 @@ Across independent providers, APIVouch additionally:
 5. deterministically selects the strongest eligible provider and returns `VERIFIED` or refuses with `UNVERIFIED`;
 6. stores a commit-bound receipt whose integrity can be recomputed without trusting APIVouch.
 
-Receipts bind the redacted provider URL, a digest of the exact request URL, resolved origin, result path, expected-schema digest, full-response digest, extracted-value digest, bounded scalar preview, observed status/latency, selection policy, and deployment commit. `examples/verify_outcome_receipt.py` verifies the content address offline with only Python's standard library.
+Receipts bind the redacted provider URL, a digest of the exact request URL, resolved origin, result path, expected-schema digest, full-response digest, extracted-value digest, bounded scalar preview, observed status/latency, selection policy, and deployment commit. `examples/verify_outcome_receipt.py` verifies the content address offline with Python's standard library. Optional Ed25519-signed v2 receipts additionally authenticate the issuer's key using the pinned `cryptography` dependency; see [signed receipts](docs/signed-receipts.md) for configuration, public-key discovery, offline verification, and trust limits.
 
 Every score is deterministic. The before/after comparison is a re-analysis of two stored contracts—there is no hard-coded score boost and no LLM-generated evidence.
 
@@ -72,7 +72,8 @@ python -m pytest -q
 CI blocks merges when either dependency set has a known vulnerability or an
 invalid dependency resolution, and repeats the audit weekly.
 
-The current release contains 49 unit and REST/MCP integration tests.
+The suite covers outcome routing, signing, readiness, independent HTTP verification,
+and modern/legacy MCP. Run it for the current count rather than relying on a stale total.
 
 Run the exact reviewer capability locally (deterministic and network-independent):
 
@@ -112,6 +113,7 @@ boundaries are documented in [SECURITY.md](SECURITY.md).
 | Export the complete evidence pack | `GET /api/projects/{id}/export` |
 | Dynamic MCP server | `POST /mcp/{id}` |
 | Deployment health | `GET /health` |
+| Bounded database/config/signing readiness | `GET /ready` |
 | X-Agent deployment proof | `GET /.well-known/xagent-verification.json` |
 
 Interactive OpenAPI documentation is available at `/docs`.
@@ -156,7 +158,13 @@ python examples/verify_outcome_receipt.py receipt.json
 
 ## Real MCP flow
 
-Initialize a generated project adapter:
+Modern `2026-07-28` clients use stateless `server/discover`, `tools/list`, and
+`tools/call` on both MCP endpoints, without initialization. See the
+[modern MCP HTTP guide](docs/mcp-modern.md) for separate requests, exact metadata
+and header requirements, error semantics, and the locally tested subset (not
+official conformance).
+
+Legacy clients can still initialize a generated project adapter:
 
 ```bash
 curl -X POST https://YOUR_DEPLOYMENT/mcp/PROJECT_ID \
@@ -216,16 +224,38 @@ APIVouch never claims that a generated description or inferred schema came from 
 
 ## Deployment
 
-The repository includes a production root `Dockerfile` and `render.yaml` blueprint. Set:
+The primary self-hosted path is `deploy/vps/docker-compose.yml`: Caddy TLS,
+non-root app, persistent PostgreSQL, internal-only DB networking, and separate
+app internet egress. Root Compose is local development only. Render remains an
+alternative. Follow the [Ubuntu operations guide](docs/deployment.md) for first
+deploy, secrets, upgrade/rollback, backup/restore, and rotation. Set:
 
 ```text
 PROJECT_SLUG=apivouch
 GIT_COMMIT=<exact 40-character deployed commit>
+PUBLIC_BASE_URL=https://YOUR_DEPLOYMENT
 DATABASE_URL=<Render Postgres connection string>
 ALLOW_PRIVATE_NETWORK=false
+REQUIRE_SIGNED_RECEIPTS=true
+RECEIPT_SIGNING_PRIVATE_KEY_B64=<inject through secret environment, never source>
 ```
 
-The blueprint creates a private, persistent Render Postgres database in the same Singapore region as the web service. Render supplies `RENDER_GIT_COMMIT`; APIVouch automatically uses it when `GIT_COMMIT` is not set. The health and verification endpoints therefore bind the deployment to the exact reviewed commit.
+The Render blueprint configures private Postgres in the same Singapore region.
+Check current plan retention and availability. Render supplies `RENDER_GIT_COMMIT`
+when `GIT_COMMIT` is unset; independently check that it equals the reviewed SHA.
+Public URL and final review commit are **pending**; configuration is not deployment evidence.
+
+Daily/manual verification uses repository variables `APIVOUCH_DEPLOYMENT_URL`
+and `APIVOUCH_EXPECTED_COMMIT`. Missing values fail. Deterministic verification
+is required; optional live exit 2 is not success. Sanitized reports expire after
+seven days. Run `python scripts/scan_secrets.py` before publishing.
+
+`/health` is liveness only. `/ready` returns 503 when the bounded database probe,
+deployment configuration, or signing configuration fails. Public proof URLs come
+only from a validated HTTPS `PUBLIC_BASE_URL`, never request headers; explicit
+loopback HTTP is allowed for development. See the [independent deployment
+verifier](docs/deployment-verifier.md) for the exact proof contract and disposable
+real-Uvicorn verification command.
 
 ## Repository map
 
@@ -244,7 +274,9 @@ render.yaml               stable deployment blueprint
 - Authenticated endpoints are analyzed but cannot be live-tested by the public service.
 - Pagination is auto-detected for common cursor, page, and offset conventions; unusual APIs can supply response paths and the request token parameter, but cannot supply observed evidence.
 - Inferred schemas describe observed samples and are not asserted as the API owner's canonical contract.
-- The local development default is SQLite; the Render review deployment uses PostgreSQL. A long-running multi-user product should add per-user access control and managed backups.
+- Local development defaults to SQLite; production templates use PostgreSQL. No public deployment is claimed. The API lacks authentication and tenant isolation; do not store private customer evidence.
+- SHA-256 proves integrity, not issuer authenticity. Ed25519 authenticates relative to a trusted public key; same-origin discovery is not independent identity attestation or proof of upstream truth.
+- Fixtures and mocked tests do not demonstrate live availability. Modern MCP is a locally tested JSON subset, not officially certified; see [protocol limits](docs/mcp-modern.md).
 
 ## Monetization path
 

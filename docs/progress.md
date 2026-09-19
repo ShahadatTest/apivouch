@@ -32,6 +32,12 @@
 
 ## Account-level release steps
 
+VPS Caddy/app/PostgreSQL configuration, scheduled/manual independent verification,
+safe secret scanning, and operator backup/restore/rollback documentation are
+implemented. These files are not deployment evidence. Signed v2 receipts,
+readiness and modern MCP have local tests; modern MCP is not officially certified.
+Public URL and final reviewed release SHA remain pending. No payment is moved.
+
 - Deploy the final public commit.
 - Confirm `/health` and `/.well-known/xagent-verification.json` report that exact 40-character commit.
 - Create the X-Agent Open Innovation submission package and PR with the final source, URL, commit, and verification transcript.

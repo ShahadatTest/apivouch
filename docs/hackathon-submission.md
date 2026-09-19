@@ -67,7 +67,8 @@ Streamable HTTP / JSON-RPC endpoint: `POST /mcp`.
 Free calls can verify public, zero-cost providers. A paid hosted tier can charge
 per verified outcome rather than per attempted provider call, with higher plans
 for longer receipt retention, private provider connectors, organization policy,
-SLA monitoring, and signed evidence exports. The current release reports quoted
+SLA monitoring, and managed evidence retention. Signed v2 exports are already
+implemented. The current release reports quoted
 provider costs but deliberately performs no settlement.
 
 ## Required values before packaging the official PR
@@ -80,3 +81,18 @@ provider costs but deliberately performs no settlement.
 
 Do not replace the pending fields until the deployed service returns the exact
 same commit from both proof endpoints.
+
+## Evidence Boundary
+
+The primary story is one verified outcome or honest refusal. SHA-256 integrity
+is not authenticity; v2 Ed25519 authenticates relative to a trusted key.
+Same-origin discovery does not independently identify an operator or attest
+upstream calls. No payment or settlement is implemented.
+
+`verify_hackathon.py` uses local TestClient, not a deployment. Use the independent
+`verify_deployment.py` with explicit HTTPS origin, exact expected SHA, and
+deterministic mode as the required deployment gate. Live mode is separate;
+exit 2 is unavailable, not success. Fixtures/mocks are not live evidence. Modern
+MCP is a locally tested JSON subset, not official conformance. VPS/Render recipes
+and scheduled verification exist, but production URL, reviewed release SHA,
+TLS issuance, backup restore, and official validator evidence remain pending.

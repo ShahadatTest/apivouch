@@ -1,13 +1,51 @@
-from sqlalchemy import String, Text, create_engine, inspect
+import asyncio
+from concurrent.futures import Future
+from threading import Lock, Thread
+
+from sqlalchemy import String, Text, create_engine, inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import DATABASE_URL
 
-_engine_options = {"connect_args": {"check_same_thread": False}} if DATABASE_URL.startswith("sqlite") else {}
+_engine_options = {"connect_args": {"check_same_thread": False, "timeout": 2}} if DATABASE_URL.startswith("sqlite") else {}
+if DATABASE_URL.startswith(("postgresql", "postgres")):
+    _engine_options.update(connect_args={"connect_timeout": 2, "options": "-c statement_timeout=2000"}, pool_timeout=2)
 if DATABASE_URL in {"sqlite://", "sqlite:///:memory:"}:
     _engine_options["poolclass"] = StaticPool
 engine = create_engine(DATABASE_URL, **_engine_options)
+
+READINESS_TIMEOUT = 2.0
+_probe_lock = Lock()
+_probe = None
+
+
+async def database_ready() -> bool:
+    global _probe
+
+    def check(future):
+        try:
+            with engine.connect() as connection:
+                available = connection.execute(text("SELECT 1")).scalar() == 1
+        except (SQLAlchemyError, OSError, RuntimeError):
+            available = False
+        future.set_result(available)
+
+    # A stalled driver occupies at most one daemon worker, not one per request.
+    with _probe_lock:
+        if _probe is None or _probe.done():
+            _probe = Future()
+            Thread(target=check, args=(_probe,), daemon=True).start()
+        probe = _probe
+    try:
+        async with asyncio.timeout(READINESS_TIMEOUT):
+            # Poll without retaining one future callback per timed-out request.
+            while not probe.done():
+                await asyncio.sleep(0.02)
+            return probe.result()
+    except TimeoutError:
+        return False
 
 
 class Base(DeclarativeBase):

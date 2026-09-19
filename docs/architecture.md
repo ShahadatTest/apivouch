@@ -57,7 +57,8 @@ The generated contract is a derived artifact. Every inserted field is marked wit
 
 ## Storage
 
-The compact review deployment uses one SQLAlchemy `projects` table with JSON documents for the source specification, analysis, live observations, findings, score, generated contract/change bundle, tools, and comparison.
+SQLAlchemy stores project JSON documents in `projects` and unchanged receipts in
+`outcome_receipts`. SQLite is local default; production templates use PostgreSQL.
 
 This keeps the review artifact reproducible. Production multi-tenant operation should use PostgreSQL, access control, quotas, project ownership, and expiry policies.
 
@@ -68,3 +69,17 @@ The REST API manages projects and evidence. Each project also becomes a stateles
 ## Network controls
 
 Every initial URL and redirect target is checked. The service blocks credentials in URLs and production access to loopback, private, link-local, metadata, multicast, reserved, or unspecified addresses. Response bytes, redirects, timeouts, retries, project count, operation count, upload size, proof pages, and proof records are bounded.
+
+## Production Topology
+
+Internet -> Caddy (only host ports 80/443) -> non-root app -> PostgreSQL.
+Caddy/app share an outbound-capable edge network; app/DB share a separate
+internal network. Named volumes retain DB and TLS state. Public provider access
+does not require enabling private-network requests. Render remains supported.
+
+SHA-256 receipts gain Ed25519 authenticity when configured (required by production
+templates), using an environment-only seed. The independent verifier imports no
+backend receipt helpers. Same-origin key discovery proves consistency, not pinned
+operator identity or upstream truth. Fixtures/mocks are not live calls. Modern
+MCP is a locally tested JSON subset, not official conformance. There is no payment
+or tenant authorization layer; templates do not establish deployment success.

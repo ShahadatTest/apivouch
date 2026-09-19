@@ -24,7 +24,11 @@ def test_health_and_verification_are_commit_bound():
     proof = client.get("/.well-known/xagent-verification.json").json()
     assert health["status"] == "ok"
     assert len(health["commit"]) == 40
-    assert proof == {"schemaVersion": 1, "slug": "apivouch", "commit": health["commit"]}
+    assert {key: proof[key] for key in ("schemaVersion", "slug", "commit")} == {
+        "schemaVersion": 1, "slug": "apivouch", "commit": health["commit"]}
+    assert proof["healthCheckUrl"] == "/health"
+    assert proof["readinessUrl"] == "/ready"
+    assert proof["mcpEndpoint"] == "/mcp"
 
 
 def test_project_contract_export_and_dynamic_mcp_flow():

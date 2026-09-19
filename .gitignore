@@ -6,3 +6,16 @@ __pycache__/
 .venv/
 venv/
 xagent-submission/
+.env.*
+!.env.example
+.ruff_cache/
+*.pem
+*.key
+*.p12
+*.pfx
+*.sql
+*.dump
+*.backup
+*.db-*
+backups/
+verification-artifacts/

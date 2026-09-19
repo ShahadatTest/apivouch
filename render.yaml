@@ -5,10 +5,16 @@ services:
     plan: free
     region: singapore
     autoDeployTrigger: checksPass
-    healthCheckPath: /health
+    healthCheckPath: /ready
     envVars:
       - key: PROJECT_SLUG
         value: apivouch
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: REQUIRE_SIGNED_RECEIPTS
+        value: "true"
+      - key: RECEIPT_SIGNING_PRIVATE_KEY_B64
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: apivouch-db
