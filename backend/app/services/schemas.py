@@ -51,7 +51,9 @@ def merge_schemas(schemas: list[dict[str, Any]]) -> dict[str, Any]:
         for schema in nonempty:
             if schema not in unique:
                 unique.append(schema)
-        return {"oneOf": unique}
+        # Observed alternatives may overlap: integers also match "number".
+        # Inference describes a union, not exactly one matching branch.
+        return {"anyOf": unique}
     kind = next(iter(signatures))
     if kind == "object":
         all_keys = sorted({key for schema in nonempty for key in (schema.get("properties") or {})})

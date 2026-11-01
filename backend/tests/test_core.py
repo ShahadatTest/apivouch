@@ -74,8 +74,45 @@ def test_scoring_is_deterministic_and_live_evidence_matters():
 
 def test_inferred_schema_represents_observed_drift():
     schema = infer_schema_from_samples([{"price": "10"}, {"price": 10}])
-    assert "oneOf" in schema["properties"]["price"]
+    assert "anyOf" in schema["properties"]["price"]
     assert not validate_instance({"price": "10"}, schema)
+
+
+@pytest.mark.parametrize("samples", [
+    [1, 1.5],
+    [{"price": 1}, {"price": 1.5}],
+    [[1, "one"], [1.5]],
+    [True, 1, 1.5, "one", None],
+])
+def test_inferred_schema_accepts_every_observed_sample(samples):
+    schema = infer_schema_from_samples(samples)
+    for sample in samples:
+        assert not validate_instance(sample, schema)
+    assert validate_instance({"unobserved": []}, schema)
+
+
+def test_inferred_array_schema_accepts_mixed_numeric_items():
+    sample = [1, 1.5]
+    schema = infer_schema(sample)
+    assert not validate_instance(sample, schema)
+    assert validate_instance(["unexpected"], schema)
+
+
+def test_generated_contract_and_mcp_schema_accept_observed_numeric_drift():
+    samples = [{"temp": 1}, {"temp": 1.5}]
+    spec = sample_spec()
+    spec["paths"]["/weather/{city}"]["get"]["responses"]["200"] = {"description": "ok"}
+    tests = [{"operation_id": "getWeather", "observations": [
+        {"success": True, "sample_data": sample} for sample in samples
+    ]}]
+    contract, _ = build_agent_contract(spec, tests)
+    endpoints = extract_endpoints(contract)
+    weather = next(item for item in endpoints if item["operation_id"] == "getWeather")
+    tool = next(item for item in generate_tools(endpoints) if item["name"] == "get_weather")
+    for sample in samples:
+        assert not validate_instance(sample, weather["response_schema"])
+        assert not validate_instance({"success": True, "data": sample}, tool["outputSchema"])
+    assert validate_instance({"temp": "unexpected"}, weather["response_schema"])
 
 
 def test_contract_generation_is_evidence_bound_not_simulated():
