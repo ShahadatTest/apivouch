@@ -83,6 +83,14 @@ Only `GET`, `HEAD`, and `OPTIONS` are automatically called. Required arguments t
 
 Generates an evidence-bound agent contract. The deprecated `/repair` alias is kept for compatibility; neither route mutates the upstream service. The comparison is produced by re-running the same deterministic evaluator against the source and generated contracts.
 
+When a missing response schema is inferred from successful observations, mixed
+types use `anyOf` alternatives. These describe a union of observed shapes, not
+mutually exclusive branches: an integer also satisfies JSON Schema `number`, so
+`oneOf` would incorrectly reject it after observing both `1` and `1.5`. The
+generated MCP tool's data schema carries the same alternatives. Declared
+upstream schemas are preserved; this inference does not prove that unobserved
+responses will match.
+
 ### `POST /api/projects/{id}/prove`
 
 ```json
